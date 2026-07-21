@@ -5,126 +5,196 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SVR Daily Tracker — Dashboard</title>
 <style>
-  body { margin:0; font-family:'Segoe UI',Arial,sans-serif; background:#f4f5f7; color:#222; }
-  header { background:#7c2d12; color:#fff; padding:12px 18px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
-  header .t { font-size:18px; font-weight:700; }
-  header a { color:#ffd9c2; text-decoration:none; font-weight:600; cursor:pointer; }
-  .wrap { padding:16px; max-width:1300px; margin:auto; }
-  .card { background:#fff; border:1px solid #e2e2e2; border-radius:8px; padding:14px; margin-bottom:14px; }
-  table { border-collapse:collapse; background:#fff; width:100%; }
-  th, td { border:1px solid #ddd; padding:5px 7px; font-size:13px; text-align:center; }
-  th { background:#fbe9e0; position:sticky; top:0; }
-  .ok { background:#d1f5d3; } .miss { background:#ffd6d6; } .fut { background:#f0f0f0; color:#aaa; }
-  .left { text-align:left; }
-  .btn { background:#7c2d12; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
-  input, select { padding:7px; border:1px solid #ccc; border-radius:5px; font-size:14px; }
-  .chip { display:inline-block; background:#eee; border-radius:12px; padding:2px 10px; margin:2px; font-size:12px; }
-  .late { color:#b45309; font-weight:700; }
-  #loginbox { max-width:330px; margin:110px auto; }
-  .scroll { overflow-x:auto; }
+  body{margin:0;font-family:'Segoe UI',Arial,sans-serif;background:#f4f5f7;color:#222;}
+  header{background:#7c2d12;color:#fff;padding:12px 18px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;}
+  header .t{font-size:18px;font-weight:700;}
+  header a{color:#ffd9c2;text-decoration:none;font-weight:600;cursor:pointer;}
+  .wrap{padding:16px;max-width:1350px;margin:auto;}
+  .card{background:#fff;border:1px solid #e2e2e2;border-radius:8px;padding:14px;margin-bottom:14px;}
+  table{border-collapse:collapse;background:#fff;width:100%;}
+  th,td{border:1px solid #ddd;padding:5px 7px;font-size:13px;text-align:center;}
+  th{background:#fbe9e0;}
+  .left{text-align:left;}
+  .ok{background:#d1f5d3;color:#14532d;font-weight:700;}
+  .part{background:#fef3c7;color:#92400e;font-weight:700;font-size:11px;}
+  .miss{background:#ffd6d6;color:#991b1b;font-weight:700;}
+  .hol{background:#e5e7eb;color:#6b7280;}
+  .fut{background:#f7f7f7;color:#ccc;}
+  .btn{background:#7c2d12;color:#fff;border:none;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;}
+  .btn2{background:#0369a1;}
+  input,select{padding:7px;border:1px solid #ccc;border-radius:5px;font-size:14px;}
+  .chip{display:inline-block;background:#eee;border-radius:12px;padding:2px 10px;margin:2px;font-size:12px;}
+  .late{color:#b45309;font-weight:700;}
+  #loginbox{max-width:330px;margin:110px auto;}
+  .scroll{overflow-x:auto;}
+  .y{color:#15803d;font-weight:700;} .n{color:#b91c1c;font-weight:700;}
+  .pill{border-radius:20px;padding:2px 10px;font-size:11.5px;font-weight:700;}
 </style>
 </head>
 <body>
 <div id="app"></div>
-
 <script>
-// ================= CONFIG =================
+// ===================== CONFIG =====================
 var API = 'https://script.google.com/macros/s/AKfycbzHAQxit9t7djfxG1KXSklYJshq6pwFm7r3g0vMFh9AFeHixG8hR_zTl5595IrlJmrrrw/exec';
-// ==========================================
+// ==================================================
 
 var PIN = localStorage.getItem('adminpin') || '';
+var DATA = null;
 
-function apiGet(params) {
-  var q = Object.keys(params).map(function(k){ return k + '=' + encodeURIComponent(params[k]); }).join('&');
-  return fetch(API + '?' + q).then(function(r){ return r.json(); });
-}
-function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
-function render(h){ document.getElementById('app').innerHTML = h; }
-function monthNow(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
-function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function apiGet(p){ var q=Object.keys(p).map(function(k){return k+'='+encodeURIComponent(p[k]);}).join('&');
+  return fetch(API+'?'+q).then(function(r){return r.json();}); }
+function apiPost(b){ return fetch(API,{method:'POST',body:JSON.stringify(b)}).then(function(r){return r.json();}); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function render(h){ document.getElementById('app').innerHTML=h; }
+function pad(n){ return String(n).padStart(2,'0'); }
+function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function yesterdayStr(){ var d=new Date(Date.now()-86400000); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function monthNow(){ return todayStr().substring(0,7); }
+function dow(d){ var p=d.split('-'); return ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(+p[0],+p[1]-1,+p[2]).getDay()]; }
 
-function showLogin(msg) {
-  render('<div id="loginbox" class="card"><h3>Dashboard Login</h3>' +
-    (msg ? '<p style="color:red">'+esc(msg)+'</p>' : '') +
-    '<input type="password" id="pin" placeholder="PIN" style="width:95%"><br><br>' +
+function showLogin(msg){
+  render('<div id="loginbox" class="card"><h3>Dashboard Login</h3>'+(msg?'<p style="color:red">'+esc(msg)+'</p>':'')+
+    '<input type="password" id="pin" placeholder="PIN" style="width:95%"><br><br>'+
     '<button class="btn" onclick="doLogin()">Enter</button></div>');
 }
-function doLogin() {
-  PIN = document.getElementById('pin').value.trim();
-  localStorage.setItem('adminpin', PIN);
-  loadGrid(monthNow());
-}
+function doLogin(){ PIN=document.getElementById('pin').value.trim(); localStorage.setItem('adminpin',PIN); load(monthNow(),'day'); }
 function logout(){ localStorage.removeItem('adminpin'); PIN=''; showLogin(); }
 
-function nav(active) {
-  return '<header><span class="t">🏪 SVR Daily Tracker — Admin</span>' +
-    '<a onclick="loadGrid(monthNow())">Dashboard</a>' +
-    '<a onclick="loadLog()">Submission Log</a>' +
+function nav(){
+  return '<header><span class="t">🏪 SVR Daily Tracker — Admin</span>'+
+    '<a onclick="view=\'day\';draw()">Daily Report</a>'+
+    '<a onclick="view=\'grid\';draw()">Month Grid</a>'+
+    '<a onclick="loadLog()">Submission Log</a>'+
     '<a onclick="logout()">Logout</a></header>';
 }
 
-// ================= GRID =================
-function loadGrid(month) {
-  render(nav() + '<div class="wrap"><p>Loading…</p></div>');
-  apiGet({ action:'status', pin:PIN, month:month }).then(function(j) {
-    if (!j.ok) { showLogin(j.error === 'wrong pin' ? 'Wrong PIN' : j.error); return; }
-    drawGrid(j);
-  }).catch(function(){ render(nav() + '<div class="wrap"><p>Cannot reach server. Refresh to retry.</p></div>'); });
+var view='day', reportDate=yesterdayStr();
+
+function load(month,v){
+  if(v) view=v;
+  render(nav()+'<div class="wrap"><p>Loading…</p></div>');
+  apiGet({action:'status',pin:PIN,month:month}).then(function(j){
+    if(!j.ok){ showLogin(j.error==='wrong pin'?'Wrong PIN':j.error); return; }
+    DATA=j; draw();
+  }).catch(function(){ render(nav()+'<div class="wrap"><p>Cannot reach server. Refresh to retry.</p></div>'); });
 }
 
-function drawGrid(j) {
-  var parts = j.month.split('-'); var y = +parts[0], m = +parts[1];
-  var ndays = new Date(y, m, 0).getDate();
-  var today = todayStr();
-  var h = nav() + '<div class="wrap"><div class="card">' +
-    'Month: <input type="month" id="mon" value="' + j.month + '"> ' +
-    '<button class="btn" onclick="loadGrid(document.getElementById(\'mon\').value)">Show</button> ' +
-    '<span class="chip">✓ submitted</span><span class="chip">✗ missing</span>' +
-    ' <span class="chip">Hover a ✓ for person & time</span></div><div class="scroll"><table><tr><th class="left">Outlet</th>';
-  for (var d = 1; d <= ndays; d++) h += '<th>' + d + '</th>';
-  h += '<th>Done</th></tr>';
-  j.outlets.forEach(function(o) {
-    var done = 0, possible = 0;
-    h += '<tr><td class="left"><b>' + esc(o) + '</b></td>';
-    for (var d = 1; d <= ndays; d++) {
-      var ds = j.month + '-' + String(d).padStart(2, '0');
-      if (ds > today) { h += '<td class="fut">·</td>'; continue; }
-      possible++;
-      var cell = j.grid[o] && j.grid[o][ds];
-      if (cell) { done++; h += '<td class="ok" title="' + esc(cell.person) + ' @ ' + esc(cell.at) + '">✓</td>'; }
-      else h += '<td class="miss">✗</td>';
+function cellState(o,d){
+  var meta=DATA.meta[o];
+  if(meta.holidays && meta.holidays.indexOf(dow(d))>=0) return {k:'hol',txt:'H',miss:[]};
+  if(d>todayStr()) return {k:'fut',txt:'·',miss:[]};
+  var c=DATA.grid[o] && DATA.grid[o][d];
+  var need=[], miss=[];
+  if(meta.att) need.push('A'); if(meta.gas) need.push('G'); if(meta.eb) need.push('E');
+  if(!c) miss=need.slice();
+  else {
+    if(meta.att && !c.a) miss.push('A');
+    if(meta.gas && !c.g) miss.push('G');
+    if(meta.eb  && !c.e) miss.push('E');
+  }
+  if(!miss.length) return {k:'ok',txt:'✓',miss:[],cell:c};
+  if(miss.length===need.length) return {k:'miss',txt:'✗',miss:miss,cell:c};
+  return {k:'part',txt:miss.join(''),miss:miss,cell:c};
+}
+var LBL={A:'Attendance',G:'Gas Reading',E:'EB Reading'};
+
+function draw(){ if(view==='grid') drawGrid(); else drawDay(); }
+
+// ---------- MONTH GRID ----------
+function drawGrid(){
+  var m=DATA.month, p=m.split('-'), ndays=new Date(+p[0],+p[1],0).getDate();
+  var h=nav()+'<div class="wrap"><div class="card">Month: <input type="month" id="mon" value="'+m+'"> '+
+    '<button class="btn" onclick="load(document.getElementById(\'mon\').value,\'grid\')">Show</button> '+
+    '<span class="chip ok">✓ all done</span><span class="chip part">A/G/E = that part missing</span>'+
+    '<span class="chip miss">✗ nothing</span><span class="chip hol">H holiday</span></div><div class="scroll"><table><tr><th class="left">Outlet</th>';
+  for(var d=1;d<=ndays;d++) h+='<th>'+d+'</th>';
+  h+='<th>Done</th></tr>';
+  DATA.outlets.forEach(function(o){
+    var done=0,poss=0; h+='<tr><td class="left"><b>'+esc(o)+'</b></td>';
+    for(var d=1;d<=ndays;d++){
+      var ds=m+'-'+pad(d), st=cellState(o,ds);
+      if(st.k==='ok'){done++;poss++;} else if(st.k==='part'||st.k==='miss'){poss++;}
+      var tip=st.miss.length?'Missing: '+st.miss.map(function(x){return LBL[x];}).join(', '):
+             (st.cell?esc(st.cell.by)+' @ '+esc(st.cell.at):'');
+      h+='<td class="'+st.k+'" title="'+tip+'">'+st.txt+'</td>';
     }
-    h += '<td><b>' + done + '/' + possible + '</b></td></tr>';
+    h+='<td><b>'+done+'/'+poss+'</b></td></tr>';
   });
-  h += '</table></div>' +
-    '<p style="font-size:13px;color:#555;margin-top:10px">Full data lives in the Google Sheet — open it for outlet-wise date rows (your report format), and manage codes / outlet setup in its Codes and Config tabs.</p></div>';
+  h+='</table></div></div>';
   render(h);
 }
 
-// ================= LOG =================
-function loadLog() {
-  render(nav() + '<div class="wrap"><p>Loading…</p></div>');
-  apiGet({ action:'log', pin:PIN }).then(function(j) {
-    if (!j.ok) { showLogin(j.error === 'wrong pin' ? 'Wrong PIN' : j.error); return; }
-    var h = nav() + '<div class="wrap"><div class="card"><h3>Submission Log — latest 300, newest first</h3>' +
-      '<p style="font-size:13px;color:#555"><b class="late">(late)</b> = submitted after 12 noon or on a later day than the entry date.</p></div>' +
-      '<table><tr><th>Entry Date</th><th>Outlet</th><th>Person</th><th>Mobile</th><th>Submitted At</th><th>Action</th></tr>';
-    j.entries.forEach(function(e) {
-      var late = '';
-      if (e.at) {
-        var ad = e.at.substring(0, 10), at = e.at.substring(11, 16);
-        if (ad > e.date || (ad === e.date && at > '12:00')) late = ' <span class="late">(late)</span>';
-      }
-      h += '<tr><td>' + esc(e.date) + '</td><td class="left"><b>' + esc(e.outlet) + '</b></td><td>' + esc(e.person) +
-           '</td><td>' + esc(e.mobile) + '</td><td>' + esc(e.at) + late + '</td><td>' + esc(e.action) + '</td></tr>';
+// ---------- DAILY REPORT (matches management format) ----------
+function drawDay(){
+  var d=reportDate;
+  var h=nav()+'<div class="wrap"><div class="card">Report date: <input type="date" id="rd" value="'+d+'"> '+
+    '<button class="btn" onclick="reportDate=document.getElementById(\'rd\').value; load(reportDate.substring(0,7),\'day\')">Show</button> '+
+    '<span class="chip">Attendance / Gas / EB come from the app automatically</span>'+
+    '<span class="chip">GRN &amp; Cost Center Transfer — you tick after checking Petpooja</span></div>';
+  var pendCount=0, rows='';
+  DATA.outlets.forEach(function(o){
+    var meta=DATA.meta[o], st=cellState(o,d), pp=DATA.petpooja[o+'|'+d]||{grn:false,transfer:false,note:''};
+    var c=(DATA.grid[o]&&DATA.grid[o][d])||null;
+    function mark(need,okv){ if(!need) return '<span style="color:#bbb">—</span>';
+      return okv?'<span class="y">✓ Done</span>':'<span class="n">✗ Pending</span>'; }
+    var isHol=(st.k==='hol');
+    var pend=[];
+    if(!isHol){
+      if(meta.att && !(c&&c.a)) pend.push('Attendance');
+      if(meta.gas && !(c&&c.g)) pend.push('Gas Reading');
+      if(meta.eb  && !(c&&c.e)) pend.push('EB Reading');
+      if(!pp.grn) pend.push('Vendor Bill GRN');
+      if(!pp.transfer) pend.push('Cost Center Transfer');
+    }
+    pendCount+=pend.length;
+    rows+='<tr><td class="left"><b>'+esc(o)+'</b>'+(isHol?' <span class="pill hol">HOLIDAY</span>':'')+'</td>'+
+      '<td>'+(isHol?'<span style="color:#bbb">—</span>':mark(meta.att,c&&c.a))+'</td>'+
+      '<td>'+(isHol?'<span style="color:#bbb">—</span>':mark(meta.gas,c&&c.g))+'</td>'+
+      '<td>'+(isHol?'<span style="color:#bbb">—</span>':mark(meta.eb,c&&c.e))+'</td>'+
+      '<td><input type="checkbox" id="grn-'+esc(o)+'" '+(pp.grn?'checked':'')+' onchange="savePP(\''+esc(o)+'\')"></td>'+
+      '<td><input type="checkbox" id="trf-'+esc(o)+'" '+(pp.transfer?'checked':'')+' onchange="savePP(\''+esc(o)+'\')"></td>'+
+      '<td class="left"><input id="note-'+esc(o)+'" value="'+esc(pp.note)+'" placeholder="reason / note" style="width:97%" onchange="savePP(\''+esc(o)+'\')"></td>'+
+      '<td class="left" style="font-size:12px;color:#b91c1c">'+esc(pend.join(', '))+'</td></tr>';
+  });
+  h+='<div class="card"><b>'+d+' — '+pendCount+' check'+(pendCount===1?'':'s')+' pending across all outlets</b></div>'+
+     '<div class="scroll"><table><tr><th class="left">Outlet</th><th>Attendance</th><th>Gas Reading</th><th>EB Reading</th>'+
+     '<th>Vendor Bill GRN<br><span style="font-weight:400;font-size:11px">Petpooja</span></th>'+
+     '<th>Cost Center Transfer<br><span style="font-weight:400;font-size:11px">Petpooja</span></th>'+
+     '<th class="left">Note</th><th class="left">Pending</th></tr>'+rows+'</table></div>'+
+     '<p style="font-size:13px;color:#555">Ticks save instantly to the Petpooja tab of the Google Sheet.</p></div>';
+  render(h);
+}
+
+function savePP(o){
+  var grn=document.getElementById('grn-'+o).checked;
+  var trf=document.getElementById('trf-'+o).checked;
+  var note=document.getElementById('note-'+o).value;
+  apiPost({action:'petpooja',pin:PIN,date:reportDate,outlet:o,grn:grn,transfer:trf,note:note}).then(function(j){
+    if(!j.ok) alert('Save failed: '+j.error);
+    else { DATA.petpooja[o+'|'+reportDate]={grn:grn,transfer:trf,note:note}; drawDay(); }
+  }).catch(function(){ alert('Cannot reach server.'); });
+}
+
+// ---------- LOG ----------
+function loadLog(){
+  render(nav()+'<div class="wrap"><p>Loading…</p></div>');
+  apiGet({action:'log',pin:PIN}).then(function(j){
+    if(!j.ok){ showLogin(j.error==='wrong pin'?'Wrong PIN':j.error); return; }
+    var h=nav()+'<div class="wrap"><div class="card"><h3>Submission Log — newest first</h3>'+
+      '<p style="font-size:13px;color:#555"><b class="late">(late)</b> = saved after 12 noon or on a later day than the entry date.</p></div>'+
+      '<table><tr><th>Entry Date</th><th>Outlet</th><th>Section</th><th>Person</th><th>Mobile</th><th>Saved At</th></tr>';
+    j.entries.forEach(function(e){
+      var late='';
+      if(e.at){ var ad=e.at.substring(0,10), at=e.at.substring(11,16);
+        if(ad>e.date||(ad===e.date&&at>'12:00')) late=' <span class="late">(late)</span>'; }
+      h+='<tr><td>'+esc(e.date)+'</td><td class="left"><b>'+esc(e.outlet)+'</b></td><td>'+esc(e.section)+
+         '</td><td>'+esc(e.person)+'</td><td>'+esc(e.mobile)+'</td><td>'+esc(e.at)+late+'</td></tr>';
     });
-    h += '</table></div>';
-    render(h);
+    render(h+'</table></div>');
   });
 }
 
-// ================= BOOT =================
-if (PIN) loadGrid(monthNow()); else showLogin();
+if(PIN) load(monthNow(),'day'); else showLogin();
 </script>
 </body>
 </html>

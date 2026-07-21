@@ -29,6 +29,9 @@
   .scroll{overflow-x:auto;}
   .y{color:#15803d;font-weight:700;} .n{color:#b91c1c;font-weight:700;}
   .pill{border-radius:20px;padding:2px 10px;font-size:11.5px;font-weight:700;}
+  .okcell{background:#f2fbf3;} .ncell{background:#fff7f7;}
+  .rin{display:block;width:100%;margin-top:4px;font-size:12px;padding:4px;border:1px solid #f0b4b4;border-radius:4px;}
+  td.okcell,td.ncell{min-width:130px;}
 </style>
 </head>
 <body>
@@ -133,11 +136,21 @@ function drawDay(){
     '<span class="chip">GRN &amp; Cost Center Transfer — you tick after checking Petpooja</span></div>';
   var pendCount=0, rows='';
   DATA.outlets.forEach(function(o){
-    var meta=DATA.meta[o], st=cellState(o,d), pp=DATA.petpooja[o+'|'+d]||{grn:false,transfer:false,note:''};
+    var meta=DATA.meta[o], st=cellState(o,d);
+    var pp=DATA.petpooja[o+'|'+d]||{grn:false,transfer:false,reasons:{}};
+    var rs=pp.reasons||{};
     var c=(DATA.grid[o]&&DATA.grid[o][d])||null;
-    function mark(need,okv){ if(!need) return '<span style="color:#bbb">—</span>';
-      return okv?'<span class="y">✓ Done</span>':'<span class="n">✗ Pending</span>'; }
     var isHol=(st.k==='hol');
+    var oid=o.replace(/[^A-Za-z0-9]/g,'_');
+
+    // one cell: status + its own reason box when pending
+    function cell(need,okv,key){
+      if(isHol||!need) return '<td><span style="color:#bbb">—</span></td>';
+      if(okv) return '<td class="okcell"><span class="y">✓ Done</span></td>';
+      return '<td class="ncell"><span class="n">✗ Pending</span>'+
+        '<input class="rin" id="r-'+key+'-'+oid+'" value="'+esc(rs[key]||'')+'" placeholder="reason…" '+
+        'onchange="savePP(\''+esc(o)+'\',\''+oid+'\')"></td>';
+    }
     var pend=[];
     if(!isHol){
       if(meta.att && !(c&&c.a)) pend.push('Attendance');
@@ -147,32 +160,64 @@ function drawDay(){
       if(!pp.transfer) pend.push('Cost Center Transfer');
     }
     pendCount+=pend.length;
+
     rows+='<tr><td class="left"><b>'+esc(o)+'</b>'+(isHol?' <span class="pill hol">HOLIDAY</span>':'')+'</td>'+
-      '<td>'+(isHol?'<span style="color:#bbb">—</span>':mark(meta.att,c&&c.a))+'</td>'+
-      '<td>'+(isHol?'<span style="color:#bbb">—</span>':mark(meta.gas,c&&c.g))+'</td>'+
-      '<td>'+(isHol?'<span style="color:#bbb">—</span>':mark(meta.eb,c&&c.e))+'</td>'+
-      '<td><input type="checkbox" id="grn-'+esc(o)+'" '+(pp.grn?'checked':'')+' onchange="savePP(\''+esc(o)+'\')"></td>'+
-      '<td><input type="checkbox" id="trf-'+esc(o)+'" '+(pp.transfer?'checked':'')+' onchange="savePP(\''+esc(o)+'\')"></td>'+
-      '<td class="left"><input id="note-'+esc(o)+'" value="'+esc(pp.note)+'" placeholder="reason / note" style="width:97%" onchange="savePP(\''+esc(o)+'\')"></td>'+
-      '<td class="left" style="font-size:12px;color:#b91c1c">'+esc(pend.join(', '))+'</td></tr>';
+      cell(meta.att,c&&c.a,'a')+cell(meta.gas,c&&c.g,'g')+cell(meta.eb,c&&c.e,'e');
+    // GRN + Transfer: tick box + own reason box when unticked
+    rows+= isHol ? '<td><span style="color:#bbb">—</span></td><td><span style="color:#bbb">—</span></td>'
+      : '<td class="'+(pp.grn?'okcell':'ncell')+'"><input type="checkbox" id="grn-'+oid+'" '+(pp.grn?'checked':'')+
+        ' onchange="savePP(\''+esc(o)+'\',\''+oid+'\')">'+
+        (pp.grn?'':'<input class="rin" id="r-grn-'+oid+'" value="'+esc(rs.grn||'')+'" placeholder="reason…" onchange="savePP(\''+esc(o)+'\',\''+oid+'\')">')+'</td>'+
+        '<td class="'+(pp.transfer?'okcell':'ncell')+'"><input type="checkbox" id="trf-'+oid+'" '+(pp.transfer?'checked':'')+
+        ' onchange="savePP(\''+esc(o)+'\',\''+oid+'\')">'+
+        (pp.transfer?'':'<input class="rin" id="r-trf-'+oid+'" value="'+esc(rs.trf||'')+'" placeholder="reason…" onchange="savePP(\''+esc(o)+'\',\''+oid+'\')">')+'</td>';
+    rows+='<td class="left" style="font-size:12px;color:#b91c1c">'+esc(pend.join(', '))+'</td></tr>';
   });
-  h+='<div class="card"><b>'+d+' — '+pendCount+' check'+(pendCount===1?'':'s')+' pending across all outlets</b></div>'+
+  h+='<div class="card"><b>'+d+' — '+pendCount+' check'+(pendCount===1?'':'s')+' pending across all outlets</b>'+
+     ' &nbsp;<button class="btn btn2" onclick="copyReport()">Copy report for WhatsApp</button></div>'+
      '<div class="scroll"><table><tr><th class="left">Outlet</th><th>Attendance</th><th>Gas Reading</th><th>EB Reading</th>'+
      '<th>Vendor Bill GRN<br><span style="font-weight:400;font-size:11px">Petpooja</span></th>'+
      '<th>Cost Center Transfer<br><span style="font-weight:400;font-size:11px">Petpooja</span></th>'+
-     '<th class="left">Note</th><th class="left">Pending</th></tr>'+rows+'</table></div>'+
-     '<p style="font-size:13px;color:#555">Ticks save instantly to the Petpooja tab of the Google Sheet.</p></div>';
+     '<th class="left">Pending</th></tr>'+rows+'</table></div>'+
+     '<p style="font-size:13px;color:#555">Each pending check has its own reason box. Ticks and reasons save instantly to the Petpooja tab of the Google Sheet.</p></div>';
   render(h);
 }
 
-function savePP(o){
-  var grn=document.getElementById('grn-'+o).checked;
-  var trf=document.getElementById('trf-'+o).checked;
-  var note=document.getElementById('note-'+o).value;
-  apiPost({action:'petpooja',pin:PIN,date:reportDate,outlet:o,grn:grn,transfer:trf,note:note}).then(function(j){
-    if(!j.ok) alert('Save failed: '+j.error);
-    else { DATA.petpooja[o+'|'+reportDate]={grn:grn,transfer:trf,note:note}; drawDay(); }
+function val(id){ var el=document.getElementById(id); return el?el.value:''; }
+
+function savePP(o,oid){
+  var grn=document.getElementById('grn-'+oid).checked;
+  var trf=document.getElementById('trf-'+oid).checked;
+  var reasons={ a:val('r-a-'+oid), g:val('r-g-'+oid), e:val('r-e-'+oid),
+                grn:val('r-grn-'+oid), trf:val('r-trf-'+oid) };
+  var prev=DATA.petpooja[o+'|'+reportDate];
+  if(prev&&prev.reasons){ ['a','g','e','grn','trf'].forEach(function(k){ if(!reasons[k]) reasons[k]=prev.reasons[k]||''; }); }
+  apiPost({action:'petpooja',pin:PIN,date:reportDate,outlet:o,grn:grn,transfer:trf,reasons:reasons}).then(function(j){
+    if(!j.ok){ alert('Save failed: '+j.error); return; }
+    DATA.petpooja[o+'|'+reportDate]={grn:grn,transfer:trf,reasons:reasons};
+    drawDay();
   }).catch(function(){ alert('Cannot reach server.'); });
+}
+
+function copyReport(){
+  var d=reportDate, lines=['Sangeetha — Daily Outlet Updates | '+d,''];
+  DATA.outlets.forEach(function(o){
+    var meta=DATA.meta[o], st=cellState(o,d);
+    var pp=DATA.petpooja[o+'|'+d]||{grn:false,transfer:false,reasons:{}}, rs=pp.reasons||{};
+    var c=(DATA.grid[o]&&DATA.grid[o][d])||null;
+    if(st.k==='hol'){ lines.push(o+': Holiday'); return; }
+    var pend=[];
+    if(meta.att && !(c&&c.a)) pend.push('Attendance'+(rs.a?' ('+rs.a+')':''));
+    if(meta.gas && !(c&&c.g)) pend.push('Gas'+(rs.g?' ('+rs.g+')':''));
+    if(meta.eb  && !(c&&c.e)) pend.push('EB'+(rs.e?' ('+rs.e+')':''));
+    if(!pp.grn) pend.push('Vendor Bill GRN'+(rs.grn?' ('+rs.grn+')':''));
+    if(!pp.transfer) pend.push('Cost Center Transfer'+(rs.trf?' ('+rs.trf+')':''));
+    lines.push(o+': '+(pend.length?'PENDING — '+pend.join('; '):'All done'));
+  });
+  var txt=lines.join('\n');
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).then(function(){ alert('Report copied. Paste into WhatsApp.'); },
+    function(){ prompt('Copy this:',txt); });
+  else prompt('Copy this:',txt);
 }
 
 // ---------- LOG ----------

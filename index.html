@@ -148,7 +148,7 @@ function buildForm(j){
 // ===================== DRAW =====================
 function drawDay(){
   var j=S.day, d=j.date, ex=j.existing||{};
-  var h='<header><div class="t">🏪 '+esc(S.outlet)+'</div><div class="s">'+esc(S.person)+' • '+d+
+  var h='<header><div class="t" onclick="secretTap()">🏪 '+esc(S.outlet)+'</div><div class="s">'+esc(S.person)+' • '+d+
         ' • <span class="link" style="color:#ffd9c2" onclick="changePerson()">change person</span></div></header>';
   if(!S.online) h+='<div class="banner off">📴 Offline — saved on this device, will send automatically</div>';
   if(S.queue.length) h+='<div class="banner pend" onclick="flush(true)">⏳ '+S.queue.length+' saved entry waiting to send — tap to retry</div>';
@@ -296,6 +296,31 @@ function flush(manual){
   }).catch(function(){});
 }
 setInterval(function(){ flush(); }, 30000);
+
+// ---- admin only: tap the outlet name 5 times, then enter admin PIN ----
+var tapN = 0, tapT = 0;
+function secretTap(){
+  var now = Date.now();
+  if (now - tapT > 2500) tapN = 0;
+  tapT = now; tapN++;
+  if (tapN < 5) return;
+  tapN = 0;
+  var pin = prompt('Admin PIN required to change the outlet on this device:');
+  if (!pin) return;
+  apiGet({ action:'log', pin:pin.trim() }).then(function(j){
+    if (!j.ok) { alert('Wrong PIN. This device stays registered to ' + S.outlet + '.'); return; }
+    logoutDevice();
+  }).catch(function(){ alert('No internet. Connect first, then try again.'); });
+}
+
+function logoutDevice(){
+  if(S.queue.length){
+    if(!confirm('⚠️ '+S.queue.length+' saved entry has NOT been sent to the server yet.\n\nLogging out will delete it. Continue?')) return;
+  } else if(!confirm('Unregister this device from '+S.outlet+'?\n\nAn activation code will be needed to register again.')) return;
+  ['code','outlet','person','mobile','config','meta','lastClose','queue'].forEach(function(k){ localStorage.removeItem(k); });
+  S.code=''; S.outlet=''; S.person=''; S.mobile=''; S.config=null; S.meta=null; S.lastClose=null; S.queue=[];
+  showSetup('Logged out. Enter the new outlet code to register this device.');
+}
 
 function clearReg(msg){
   ['code','outlet','config','meta'].forEach(function(k){ localStorage.removeItem(k); });

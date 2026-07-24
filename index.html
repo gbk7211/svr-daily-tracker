@@ -70,7 +70,10 @@ var S = {
   online: true, day: null, form: null
 };
 function save(k,v){ localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); }
-function today(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Business rule: a reading entered today belongs to YESTERDAY.
+// So the form's entry date defaults to yesterday.
+function today(){ var d=new Date(Date.now()-86400000); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function realToday(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function num(v){ var n=parseFloat(String(v).replace(',','.')); return isNaN(n)?0:n; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 function apiGet(p){ var q=Object.keys(p).map(function(k){return k+'='+encodeURIComponent(p[k]);}).join('&');
@@ -148,12 +151,13 @@ function buildForm(j){
 // ===================== DRAW =====================
 function drawDay(){
   var j=S.day, d=j.date, ex=j.existing||{};
-  var h='<header><div class="t" onclick="secretTap()">🏪 '+esc(S.outlet)+'</div><div class="s">'+esc(S.person)+' • '+d+
+  var h='<header><div class="t" onclick="secretTap()">🏪 '+esc(S.outlet)+'</div><div class="s">'+esc(S.person)+' • Reading for '+d+
         ' • <span class="link" style="color:#ffd9c2" onclick="changePerson()">change person</span></div></header>';
   if(!S.online) h+='<div class="banner off">📴 Offline — saved on this device, will send automatically</div>';
   if(S.queue.length) h+='<div class="banner pend" onclick="flush(true)">⏳ '+S.queue.length+' saved entry waiting to send — tap to retry</div>';
   h+='<div class="wrap">';
   if(j.holiday) h+='<div class="note">🌙 <b>Weekly holiday</b> for '+esc(S.outlet)+' today. No entry is required — the dashboard will not mark this day as missing.</div>';
+  h+='<div class="note">📅 You are entering readings for <b>'+d+'</b> (yesterday). Today you record yesterday\'s closing figures.</div>';
   h+='<div class="note">✅ You can save each section separately. Fill attendance now and gas/EB later — whatever is ready.</div>';
   if(j.meta.att) h+=attCard(ex.att);
   if((j.config.gas||[]).length) h+=gasCard(ex.gas);

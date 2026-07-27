@@ -71,14 +71,21 @@ function nav(){
     '<a onclick="logout()">Logout</a></header>';
 }
 
-var view='day', reportDate=yesterdayStr();
+var view='day', reportDate=yesterdayStr(), latestKnown='';
 
 function load(month,v){
   if(v) view=v;
   render(nav()+'<div class="wrap"><p>Loading…</p></div>');
   apiGet({action:'status',pin:PIN,month:month}).then(function(j){
     if(!j.ok){ showLogin(j.error==='wrong pin'?'Wrong PIN':j.error); return; }
-    DATA=j; draw();
+    DATA=j;
+    if(j.latest && j.latest!==latestKnown){
+      latestKnown=j.latest;
+      // on the very first open, snap the report to the latest date that has data
+      if(!window.__snapped){ window.__snapped=true; reportDate=j.latest;
+        if(j.latest.substring(0,7)!==month){ load(j.latest.substring(0,7),view); return; } }
+    }
+    draw();
   }).catch(function(){ render(nav()+'<div class="wrap"><p>Cannot reach server. Refresh to retry.</p></div>'); });
 }
 
@@ -130,10 +137,15 @@ function drawGrid(){
 // ---------- DAILY REPORT (matches management format) ----------
 function drawDay(){
   var d=reportDate;
-  var h=nav()+'<div class="wrap"><div class="card">Report date: <input type="date" id="rd" value="'+d+'"> '+
-    '<button class="btn" onclick="reportDate=document.getElementById(\'rd\').value; load(reportDate.substring(0,7),\'day\')">Show</button> '+
-    '<span class="chip">Attendance / Gas / EB come from the app automatically</span>'+
-    '<span class="chip">GRN &amp; Cost Center Transfer — you tick after checking Petpooja</span></div>';
+  var isLatest = (d===latestKnown);
+  var h=nav()+'<div class="wrap"><div class="card">'+
+    '<div style="font-size:15px;font-weight:700;margin-bottom:8px">Showing date: '+d+
+      (isLatest?'  <span style="color:#15803d">(latest — what workers just entered)</span>':'  <span style="color:#b45309">(older date)</span>')+'</div>'+
+    '<button class="btn" onclick="reportDate=latestKnown;load(reportDate.substring(0,7),\'day\')">Latest entries</button> '+
+    '&nbsp; or pick a date: <input type="date" id="rd" value="'+d+'"> '+
+    '<button class="btn btn2" onclick="reportDate=document.getElementById(\'rd\').value; load(reportDate.substring(0,7),\'day\')">Show</button> '+
+    '<div style="margin-top:8px"><span class="chip">Attendance / Gas / EB come from the app automatically</span>'+
+    '<span class="chip">GRN &amp; Cost Center Transfer — you tick after checking Petpooja</span></div></div>';
   var pendCount=0, rows='';
   DATA.outlets.forEach(function(o){
     var meta=DATA.meta[o], st=cellState(o,d);

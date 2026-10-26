@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVR Maintenance — Admin</title>
+<link rel="icon" type="image/png" href="./logo.png">
+<script src="./maint-common.js"></script>
+<style>
+  .wrap{max-width:1250px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px}
+  .stat{background:#fff;border-radius:12px;padding:14px;box-shadow:0 1px 4px rgba(0,0,0,.07);cursor:pointer}
+  .stat .v{font-size:28px;font-weight:800}.stat .k{font-size:13px;color:#64748b;font-weight:600}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+  th,td{padding:9px 10px;border-bottom:1px solid #eef2f7;font-size:13.5px;text-align:left;vertical-align:top}
+  th{background:#f8fafc;font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#64748b}
+  tr.click{cursor:pointer}tr.click:hover td{background:#f8fafc}
+  .num{text-align:center}
+  .filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.filters select,.filters input{width:auto;min-width:150px;padding:9px;font-size:14px}
+  .scroll{overflow-x:auto}
+  .sw{position:relative;width:52px;height:30px;border-radius:999px;border:none;cursor:pointer;background:#cbd5e1;transition:.2s}
+  .sw::after{content:'';position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:.2s}
+  .sw.on{background:#15803d}.sw.on::after{left:25px}
+  .r{color:#b91c1c;font-weight:700}.gr{color:#15803d;font-weight:700}
+</style>
+</head>
+<body>
+<header>
+  <div class="t">🛠️ SVR Maintenance — Admin</div>
+  <div class="s" id="hsub"></div>
+</header>
+<div class="wrap" id="app"><div class="empty">Loading…</div></div>
+
+<script>
+var PIN = M.ls('maintAdminPin') || '', D = null, META = null, TAB = 'overview';
+var F = { outlet: '', status: 'open', priority: '', q: '' };
+function H() { return { 'X-Admin-Pin': PIN }; }
+function app(h) { M.$('app').innerHTML = h; }
+
+function showLogin(msg) {
+  app('<div class="card" style="max-width:360px;margin:60px auto"><div class="dtitle">Admin login</div>' +
+      (msg ? '<p class="late">' + M.esc(msg) + '</p>' : '') +
+      '<label>Admin PIN</label><input id="pin" type="password" onkeydown="if(event.key===\'Enter\')doLogin()">' +
+      '<button class="big" style="margin-top:12px" onclick="doLogin()">ENTER</button></div>');
+}
+function doLogin() { PIN = M.$('pin').value.trim(); M.ls('maintAdminPin', PIN); load(); }
+function logout() { M.ls('maintAdminPin', null); PIN = ''; showLogin(); }
+
+function load() {
+  if (!PIN) return showLogin();
+  Promise.all([M.call('GET', '/api/m/meta'), M.call('GET', '/api/m/admin/overview?days=90', H())]).then(function (r) {
+    if (r[1].offline) return app('<div class="card">📴 Cannot reach the maintenance server.</div><button class="big" onclick="load()">TRY AGAIN</button>');
+    if (!r[1].ok) return showLogin(r[1].error === 'wrong pin' ? 'Wrong PIN' : r[1].error);
+    META = r[0]; D = r[1];
+    M.$('hsub').innerHTML = 'Last 90 days · updated ' + new Date().toLocaleTimeString() +
+      ' · <a href="#" onclick="load();return false">refresh</a> · <a href="#" onclick="logout();return false">log out</a>';
+    draw();
+  });
+}
+
+function draw() {
+  var h = '<div class="tabs">' + [['overview', 'Overview'], ['tickets', 'All tickets'], ['outlets', 'Outlets on/off'],
+    ['team', 'Team & codes'], ['export', 'Excel export']].map(function (x) {
+      return '<button class="tab' + (TAB === x[0] ? ' on' : '') + '" onclick="TAB=\'' + x[0] + '\';draw()">' + x[1] + '</button>';
+    }).join('') + '</div>';
+  h += ({ overview: overview, tickets: ticketsView, outlets: outletsView, team: teamView, export: exportView })[TAB]();
+  app(h);
+}
+
+// ----------------------------------------------------------- overview
+function overview() {
+  var T = D.tickets, cnt = function (f) { return T.filter(f).length; };
+  var s = [
+    ['Open', cnt(function (t) { return t.status !== 'Completed'; }), 'open', ''],
+    ['Waiting to assign', cnt(function (t) { return t.status === 'Pending Assignment'; }), 'Pending Assignment', '#b45309'],
+    ['Overdue', cnt(function (t) { return t.overdue; }), 'overdue', '#b91c1c'],
+    ['Delayed', cnt(function (t) { return t.status === 'Delayed'; }), 'Delayed', '#b91c1c'],
+    ['Waiting outlet OK', cnt(function (t) { return t.status === 'Pending Manager Confirmation'; }), 'Pending Manager Confirmation', '#c2410c'],
+    ['Completed (90d)', cnt(function (t) { return t.status === 'Completed'; }), 'Completed', '#15803d']];
+  var h = '<div class="stats">' + s.map(function (x) {
+    return '<div class="stat" onclick="F.status=\'' + x[2] + '\';F.outlet=\'\';TAB=\'tickets\';draw()"><div class="v" style="color:' + (x[3] || 'inherit') + '">' + x[1] + '</div><div class="k">' + x[0] + '</div></div>';
+  }).join('') + '</div>';
+  h += '<div class="sec">Outlet-wise</div><div class="scroll"><table><tr><th>Outlet</th><th>Maintenance</th><th class="num">Open</th><th class="num">Overdue</th><th class="num">Completed</th><th class="num">On-time %</th></tr>';
+  D.outlets.forEach(function (o) {
+    var st = D.stats[o.name] || { open: 0, overdue: 0, completed: 0, sla_met: 0 };
+    var pct = st.completed ? Math.round(100 * st.sla_met / st.completed) + '%' : '—';
+    h += '<tr class="click" onclick="F.outlet=\'' + M.esc(o.name) + '\';F.status=\'\';TAB=\'tickets\';draw()"><td><b>' + M.esc(o.name) + '</b></td>' +
+      '<td>' + (o.enabled ? '<span class="gr">ON</span>' : '<span style="color:#94a3b8">off</span>') + '</td>' +
+      '<td class="num">' + st.open + '</td><td class="num ' + (st.overdue ? 'r' : '') + '">' + st.overdue + '</td>' +
+      '<td class="num">' + st.completed + '</td><td class="num">' + pct + '</td></tr>';
+  });
+  h += '</table></div>';
+  var techs = D.staff.filter(function (x) { return x.role === 'technician' && x.active; });
+  if (techs.length) {
+    h += '<div class="sec">Technician workload</div><div class="scroll"><table><tr><th>Technician</th><th class="num">Open jobs</th><th class="num">Overdue</th><th class="num">Completed (90d)</th><th class="num">Sent back by outlet</th></tr>';
+    techs.forEach(function (x) {
+      var mine = D.tickets.filter(function (t) { return t.assigned_to === x.id; });
+      h += '<tr><td><b>' + M.esc(x.name) + '</b></td><td class="num">' + mine.filter(function (t) { return t.status !== 'Completed'; }).length + '</td>' +
+        '<td class="num r">' + mine.filter(function (t) { return t.overdue; }).length + '</td>' +
+        '<td class="num">' + mine.filter(function (t) { return t.status === 'Completed'; }).length + '</td>' +
+        '<td class="num">' + mine.reduce(function (a, t) { return a + (t.reopen_count || 0); }, 0) + '</td></tr>';
+    });
+    h += '</table></div>';
+  }
+  return h;
+}
+
+// ----------------------------------------------------------- tickets
+function filtered() {
+  var q = F.q.toLowerCase();
+  return D.tickets.filter(function (t) {
+    if (F.outlet && t.outlet !== F.outlet) return false;
+    if (F.priority && t.priority !== F.priority) return false;
+    if (F.status === 'open' && t.status === 'Completed') return false;
+    if (F.status === 'overdue' && !t.overdue) return false;
+    if (F.status && F.status !== 'open' && F.status !== 'overdue' && t.status !== F.status) return false;
+    if (q && (t.id + ' ' + t.title + ' ' + (t.technician || '') + ' ' + t.category).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  });
+}
+function ticketsView() {
+  var h = '<div class="filters">' +
+    '<select onchange="F.outlet=this.value;draw()"><option value="">All outlets</option>' + D.outlets.map(function (o) {
+      return '<option' + (F.outlet === o.name ? ' selected' : '') + '>' + M.esc(o.name) + '</option>'; }).join('') + '</select>' +
+    '<select onchange="F.status=this.value;draw()">' + [['', 'All statuses'], ['open', 'All open'], ['overdue', 'Overdue']].concat(
+      Object.keys(M.STATUS).map(function (s) { return [s, s]; })).map(function (x) {
+      return '<option value="' + M.esc(x[0]) + '"' + (F.status === x[0] ? ' selected' : '') + '>' + M.esc(x[1]) + '</option>'; }).join('') + '</select>' +
+    '<select onchange="F.priority=this.value;draw()"><option value="">All priorities</option>' + META.priorities.map(function (p) {
+      return '<option' + (F.priority === p[0] ? ' selected' : '') + '>' + p[0] + '</option>'; }).join('') + '</select>' +
+    '<input placeholder="Search ID, title, technician" value="' + M.esc(F.q) + '" onchange="F.q=this.value;draw()"></div>';
+  var list = filtered();
+  h += '<div class="scroll"><table><tr><th>ID</th><th>Outlet</th><th>Problem</th><th>Priority</th><th>Status</th><th>Technician</th><th>Raised</th><th>Target</th></tr>';
+  h += list.map(function (t) {
+    return '<tr class="click" onclick="openTicket(\'' + t.id + '\')"><td><b>' + t.id + '</b></td><td>' + M.esc(t.outlet) + '</td>' +
+      '<td>' + M.esc(t.title) + '<div style="font-size:12px;color:#64748b">' + M.esc(t.category) + '</div></td>' +
+      '<td>' + M.priTag(t.priority) + '</td><td>' + M.pill(t.status) + '</td><td>' + M.esc(t.technician || '—') + '</td>' +
+      '<td>' + M.esc(M.when(t.raised_at)) + '</td><td>' + M.dueText(t) + '</td></tr>';
+  }).join('') || '<tr><td colspan="8" class="empty">No tickets match.</td></tr>';
+  return h + '</table></div>';
+}
+function openTicket(id) {
+  M.call('GET', '/api/m/admin/tickets/' + encodeURIComponent(id), H()).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true);
+    var t = j.ticket, extra = '';
+    var techs = D.staff.filter(function (x) { return x.role === 'technician' && x.active; });
+    if (t.status !== 'Completed' && t.status !== 'Pending Manager Confirmation' && techs.length) {
+      extra += '<label>' + (t.assigned_to ? 'Re-assign' : 'Assign') + ' technician (admin override)</label>' +
+        '<div style="display:flex;gap:8px"><select id="ad-as">' + techs.map(function (x) {
+          return '<option value="' + x.id + '"' + (t.assigned_to === x.id ? ' selected' : '') + '>' + M.esc(x.name) + '</option>'; }).join('') +
+        '</select><button class="btn b" onclick="assign(\'' + t.id + '\')">Save</button></div>';
+    }
+    if (t.mgr_feedback) extra += '<div class="note" style="margin-top:12px"><b>Outlet feedback:</b> ' + M.esc(t.mgr_feedback) + '</div>';
+    extra += '<label>Admin comment</label><textarea id="c-note" maxlength="500"></textarea>' +
+      '<button class="btn" style="margin-top:8px;width:100%" onclick="comment(\'' + t.id + '\')">Send comment</button>';
+    M.openSheet(M.detail(t, extra));
+  });
+}
+function assign(id) {
+  M.call('POST', '/api/m/admin/tickets/' + id + '/assign', H(), { tech_id: +M.$('ad-as').value }).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true);
+    M.closeSheet(); M.toast('Assigned'); load();
+  });
+}
+function comment(id) {
+  var note = M.$('c-note').value.trim(); if (!note) return;
+  M.call('POST', '/api/m/admin/tickets/' + id + '/comment', H(), { note: note }).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true); M.toast('Comment sent'); openTicket(id);
+  });
+}
+
+// ----------------------------------------------------------- outlets on/off
+function outletsView() {
+  var h = '<div class="note">Switch an outlet <b>ON</b> to show the <b>🛠️ Maintenance</b> button on that outlet\'s Daily Tracker. ' +
+    'Outlets that are OFF see no change at all. Turn them on one by one.</div>';
+  h += '<div class="scroll"><table><tr><th>Outlet</th><th>Maintenance</th><th>Changed</th></tr>';
+  h += D.outlets.map(function (o) {
+    return '<tr><td><b>' + M.esc(o.name) + '</b></td><td><button class="sw' + (o.enabled ? ' on' : '') + '" onclick="setOutlet(\'' +
+      M.esc(o.name) + '\',' + (o.enabled ? 0 : 1) + ')" aria-label="toggle"></button></td><td>' + M.esc(M.when(o.updated_at)) + '</td></tr>';
+  }).join('');
+  h += '</table></div><div class="card" style="margin-top:14px"><b>Outlet not in the list?</b> It appears automatically the first time that ' +
+    'outlet opens Maintenance. Or add it now — the name must match the Daily Tracker exactly:' +
+    '<div style="display:flex;gap:8px;margin-top:10px"><input id="new-outlet" placeholder="e.g. OMR"><button class="btn" onclick="addOutlet()">Add</button></div></div>';
+  return h;
+}
+function setOutlet(name, en) {
+  if (en && !confirm('Switch ON maintenance for ' + name + '?\n\nTheir Daily Tracker will show a Maintenance button.')) return;
+  M.call('POST', '/api/m/admin/outlets', H(), { outlet: name, enabled: en }).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true);
+    M.toast(name + (en ? ' switched ON' : ' switched off')); load();
+  });
+}
+function addOutlet() {
+  var n = M.$('new-outlet').value.trim(); if (!n) return;
+  M.call('POST', '/api/m/admin/outlets', H(), { outlet: n, enabled: 0 }).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true); load();
+  });
+}
+
+// ----------------------------------------------------------- team
+function teamView() {
+  var h = '<div class="card"><div class="dtitle">Add a person</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">' +
+    '<div><label>Name</label><input id="s-name"></div><div><label>Mobile</label><input id="s-mob" inputmode="numeric" maxlength="10"></div>' +
+    '<div><label>Role</label><select id="s-role"><option value="head">Maintenance head</option><option value="technician">Technician</option></select></div></div>' +
+    '<button class="btn" style="margin-top:12px" onclick="addStaff()">Add and create login code</button></div>';
+  h += '<div class="scroll"><table><tr><th>Name</th><th>Role</th><th>Mobile</th><th>Login code</th><th>Status</th><th></th></tr>';
+  h += D.staff.map(function (x) {
+    return '<tr><td><b>' + M.esc(x.name) + '</b></td><td>' + (x.role === 'head' ? 'Maintenance head' : 'Technician') + '</td>' +
+      '<td>' + M.esc(x.mobile || '') + '</td><td><b>' + M.esc(x.code) + '</b></td>' +
+      '<td>' + (x.active ? '<span class="gr">Active</span>' : '<span style="color:#94a3b8">Off</span>') + '</td>' +
+      '<td><button class="btn ' + (x.active ? 'r' : 'g') + '" style="padding:7px 10px;font-size:13px" onclick="toggleStaff(' + x.id + ',' + (x.active ? 0 : 1) + ')">' +
+      (x.active ? 'Switch off' : 'Switch on') + '</button></td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">Add your maintenance head first. He can then add his technicians himself.</td></tr>';
+  return h + '</table></div><p style="font-size:13px;color:#64748b">Technicians and the head log in at <b>' +
+    M.esc(location.href.replace(/[^/]*$/, '') + 'team.html') + '</b> with their code.</p>';
+}
+function addStaff() {
+  var b = { name: M.$('s-name').value.trim(), mobile: M.$('s-mob').value.trim(), role: M.$('s-role').value };
+  if (!b.name) return M.toast('Enter a name', true);
+  M.call('POST', '/api/m/admin/staff', H(), b).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true);
+    alert(b.name + ' added.\n\nLogin code:  ' + j.code); load();
+  });
+}
+function toggleStaff(id, a) {
+  M.call('POST', '/api/m/admin/staff/' + id + '/active', H(), { active: a }).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true); load();
+  });
+}
+
+// ----------------------------------------------------------- export
+function exportView() {
+  var d = new Date(), pad = function (n) { return String(n).padStart(2, '0'); };
+  var end = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  var s = new Date(Date.now() - 30 * 86400000);
+  var start = s.getFullYear() + '-' + pad(s.getMonth() + 1) + '-' + pad(s.getDate());
+  return '<div class="card"><div class="dtitle">Download tickets as Excel</div>' +
+    '<p style="color:#64748b;font-size:14px">Every ticket raised in the date range, with all steps, delay reasons, SLA result and a full timeline sheet.</p>' +
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end"><div><label>From</label><input type="date" id="x-s" value="' + start + '"></div>' +
+    '<div><label>To</label><input type="date" id="x-e" value="' + end + '"></div>' +
+    '<button class="btn" onclick="doExport()">Download Excel</button></div></div>';
+}
+function doExport() {
+  location.href = MAINT_API + '/api/m/admin/export.xlsx?pin=' + encodeURIComponent(PIN) +
+    '&start=' + M.$('x-s').value + '&end=' + M.$('x-e').value;
+}
+
+load();
+setInterval(function () { if (PIN && D && !document.hidden && !(M.$('sheet') && M.$('sheet').className === 'open')) load(); }, 120000);
+</script>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1e293b">
+<title>SVR Maintenance Team</title>
+<link rel="icon" type="image/png" href="./logo.png">
+<script src="./maint-common.js"></script>
+</head>
+<body>
+<header>
+  <div class="t" id="htitle">🛠️ Maintenance Team</div>
+  <div class="s" id="hsub"></div>
+</header>
+<div class="wrap" id="app"><div class="empty">Loading…</div></div>
+
+<script>
+var CODE = M.ls('staffCode') || '';
+var ME = null, DATA = null, META = null, TAB = '';
+function H() { return { 'X-Staff-Code': CODE }; }
+function app(h) { M.$('app').innerHTML = h; }
+
+// ----------------------------------------------------------- login
+function showLogin(msg) {
+  M.$('hsub').textContent = 'Technicians and maintenance head';
+  app('<div class="card"><div class="dtitle">Log in</div>' +
+      (msg ? '<p class="late">' + M.esc(msg) + '</p>' : '') +
+      '<label>Your personal code (from your maintenance head)</label>' +
+      '<input id="l-code" autocapitalize="characters" placeholder="e.g. TECH-7K3Q9">' +
+      '<button class="big" style="margin-top:14px" onclick="doLogin()">LOG IN</button>' +
+      '<p style="font-size:13px;color:#64748b">Do this once. This phone will remember you.</p></div>' +
+      '<p style="text-align:center"><a href="./index.html" style="color:#64748b">← Outlet staff: go to Daily Tracker</a></p>');
+}
+function doLogin() {
+  CODE = M.$('l-code').value.trim().toUpperCase();
+  if (!CODE) return;
+  M.call('POST', '/api/m/staff/login', H()).then(function (j) {
+    if (j.offline) return showLogin('No internet. Try again.');
+    if (!j.ok) { CODE = ''; return showLogin(j.error === 'staff_not_found' ? 'Code not found or switched off.' : j.error); }
+    M.ls('staffCode', CODE); start();
+  });
+}
+function logout() {
+  if (!confirm('Log out from this phone?')) return;
+  M.ls('staffCode', null); CODE = ''; ME = null; showLogin();
+}
+
+// ----------------------------------------------------------- data
+function start() {
+  if (!CODE) return showLogin();
+  Promise.all([M.call('GET', '/api/m/meta'), M.call('GET', '/api/m/staff/tickets', H())]).then(function (r) {
+    if (r[1].offline) { app('<div class="card">📴 Cannot reach the server. Check internet.</div><button class="big" onclick="start()">TRY AGAIN</button>'); return; }
+    if (!r[1].ok) { M.ls('staffCode', null); CODE = ''; return showLogin('Your code is no longer active. Ask your maintenance head.'); }
+    META = r[0]; DATA = r[1]; ME = { name: DATA.me, role: DATA.role };
+    M.$('htitle').textContent = ME.role === 'head' ? '🛠️ Maintenance Head' : '🛠️ My Jobs';
+    M.$('hsub').innerHTML = M.esc(ME.name) + ' · <a href="#" onclick="logout();return false">log out</a>';
+    if (!TAB) TAB = ME.role === 'head' ? 'assign' : 'new';
+    draw();
+  });
+}
+function refresh() {
+  M.call('GET', '/api/m/staff/tickets', H()).then(function (j) { if (j.ok) { DATA = j; draw(); } });
+}
+function by(statuses) { return DATA.tickets.filter(function (t) { return statuses.indexOf(t.status) >= 0; }); }
+
+function tabs(list) {
+  return '<div class="tabs">' + list.map(function (x) {
+    return '<button class="tab' + (TAB === x[0] ? ' on' : '') + '" onclick="TAB=\'' + x[0] + '\';draw()">' + x[1] +
+      (x[2] ? '<span class="n">' + x[2] + '</span>' : '') + '</button>';
+  }).join('') + '</div>';
+}
+
+function draw() { if (ME.role === 'head') drawHead(); else drawTech(); }
+
+// ----------------------------------------------------------- TECHNICIAN
+function drawTech() {
+  var nw = by(['Assigned']), wk = by(['Accepted', 'In Progress', 'Delayed']),
+      wt = by(['Pending Manager Confirmation']), dn = by(['Completed']);
+  var h = tabs([['new', 'New jobs', nw.length], ['work', 'Working', wk.length],
+                ['wait', 'Waiting outlet OK', 0], ['done', 'Done', 0]]);
+  var list = { new: nw, work: wk, wait: wt, done: dn }[TAB] || [];
+  var help = {
+    new: 'New jobs from your head. Tap <b>Accept</b> to take the job.',
+    work: 'Tap <b>Start</b> when you reach the outlet. If it will be late, tap <b>Report delay</b>. When fixed, tap <b>Work done</b>.',
+    wait: 'You marked these done. The outlet manager must confirm. If they say not fixed, the job comes back to Working.',
+    done: 'Completed in the last 30 days.' }[TAB];
+  h += '<div class="note">' + help + '</div>';
+  h += list.length ? list.map(function (t) { return M.card(t, techActions(t), { showOutlet: true }); }).join('')
+                   : '<div class="empty">Nothing here.</div>';
+  app(h);
+}
+function techActions(t) {
+  if (t.status === 'Assigned') return '<button class="btn g" onclick="step(\'' + t.id + '\',\'accept\')">✓ Accept job</button>';
+  if (t.status === 'Accepted') return '<button class="btn b" onclick="step(\'' + t.id + '\',\'start\')">▶ Start work</button>' +
+                                      '<button class="btn o" onclick="delayForm(\'' + t.id + '\')">⏳ Report delay</button>';
+  if (t.status === 'Delayed') return '<button class="btn b" onclick="step(\'' + t.id + '\',\'start\')">▶ Resume work</button>' +
+                                     '<button class="btn g" onclick="doneForm(\'' + t.id + '\')">✓ Work done</button>';
+  if (t.status === 'In Progress') return '<button class="btn o" onclick="delayForm(\'' + t.id + '\')">⏳ Report delay</button>' +
+                                         '<button class="btn g" onclick="doneForm(\'' + t.id + '\')">✓ Work done</button>';
+  return '';
+}
+function step(id, what) {
+  M.call('POST', '/api/m/staff/tickets/' + id + '/' + what, H(), {}).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    M.closeSheet(); M.toast(what === 'accept' ? 'Job accepted' : 'Work started');
+    if (what === 'accept') TAB = 'work';
+    refresh();
+  });
+}
+function delayForm(id) {
+  M.openSheet('<div class="dtitle">Report a delay — ' + M.esc(id) + '</div>' +
+    '<label>Why is it delayed? *</label><select id="d-r"><option value="">Choose…</option>' +
+    META.delay_reasons.map(function (r) { return '<option>' + M.esc(r) + '</option>'; }).join('') + '</select>' +
+    '<label>Comment for outlet and head *</label><textarea id="d-n" maxlength="500" placeholder="e.g. Thermostat ordered, arrives tomorrow"></textarea>' +
+    '<label>Expected to finish by (optional)</label><input id="d-e" type="date">' +
+    '<button class="big" style="margin-top:16px;background:#c2410c" onclick="sendDelay(\'' + id + '\')">SEND DELAY UPDATE</button>');
+}
+function sendDelay(id) {
+  var b = { reason: M.$('d-r').value, note: M.$('d-n').value.trim(), expected: M.$('d-e').value };
+  if (!b.reason || !b.note) return M.toast('Choose a reason and write a comment', true);
+  M.call('POST', '/api/m/staff/tickets/' + id + '/delay', H(), b).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    M.closeSheet(); M.toast('Delay reported'); refresh();
+  });
+}
+function doneForm(id) {
+  M.openSheet('<div class="dtitle">Work done — ' + M.esc(id) + '</div>' +
+    '<label>What did you do? *</label><textarea id="w-n" maxlength="800" placeholder="e.g. Replaced thermostat, tested 30 minutes"></textarea>' +
+    '<label>Spare parts replaced (optional)</label><input id="w-p" maxlength="300" placeholder="e.g. Thermostat ×1">' +
+    '<label>Photo after repair (optional)</label><input id="w-ph" type="file" accept="image/*" capture="environment">' +
+    '<div class="note" style="margin-top:12px">The outlet manager will be asked to confirm. The job closes only when both of you tick done.</div>' +
+    '<button class="big" id="w-go" style="background:#15803d" onclick="sendDone(\'' + id + '\')">MARK WORK DONE</button>');
+}
+function sendDone(id) {
+  var note = M.$('w-n').value.trim();
+  if (!note) return M.toast('Write what you did', true);
+  var btn = M.$('w-go'); btn.disabled = true; btn.textContent = 'Sending…';
+  M.shrinkPhoto(M.$('w-ph').files[0]).then(function (blob) {
+    var fd = new FormData(); fd.append('note', note); fd.append('parts', M.$('w-p').value.trim());
+    if (blob) fd.append('photo', blob, 'after.jpg');
+    return M.call('POST', '/api/m/staff/tickets/' + id + '/done', H(), fd, 60000);
+  }).then(function (j) {
+    if (!j.ok) { btn.disabled = false; btn.textContent = 'MARK WORK DONE'; return M.toast(j.offline ? 'No internet — not sent' : j.error, true); }
+    M.closeSheet(); M.toast('✅ Sent to outlet for confirmation'); TAB = 'wait'; refresh();
+  });
+}
+
+// ----------------------------------------------------------- HEAD
+function drawHead() {
+  var un = by(['Pending Assignment']),
+      open = by(['Assigned', 'Accepted', 'In Progress', 'Delayed']),
+      wait = by(['Pending Manager Confirmation']),
+      over = DATA.tickets.filter(function (t) { return t.overdue; });
+  var h = tabs([['assign', 'To assign', un.length], ['open', 'In work', 0], ['late', 'Overdue', over.length],
+                ['wait', 'Waiting outlet OK', 0], ['team', 'My team', 0]]);
+  if (TAB === 'team') { app(h + teamView()); return; }
+  var list = { assign: un, open: open, late: over, wait: wait }[TAB] || [];
+  if (TAB === 'assign') h += '<div class="note">New requests from outlets. Pick a technician and tap <b>Assign</b>.</div>';
+  h += list.length ? list.map(function (t) { return M.card(t, headActions(t), { showOutlet: true }); }).join('')
+                   : '<div class="empty">Nothing here.</div>';
+  app(h);
+}
+function techOptions(sel) {
+  return DATA.technicians.filter(function (x) { return x.active; }).map(function (x) {
+    return '<option value="' + x.id + '"' + (sel === x.id ? ' selected' : '') + '>' + M.esc(x.name) + ' (' + x.open_jobs + ' open)</option>';
+  }).join('');
+}
+function headActions(t, pfx) {
+  pfx = pfx || '';
+  if (t.status === 'Pending Manager Confirmation' || t.status === 'Completed') return '';
+  if (!DATA.technicians.some(function (x) { return x.active; })) return '<span style="font-size:13px;color:#b91c1c">Add technicians in “My team” first</span>';
+  return '<select id="' + pfx + 'as-' + t.id + '" style="flex:2"><option value="">' + (t.assigned_to ? 'Re-assign to…' : 'Choose technician…') + '</option>' + techOptions() + '</select>' +
+         '<button class="btn b" onclick="assign(\'' + t.id + '\',\'' + pfx + '\')">' + (t.assigned_to ? 'Re-assign' : 'Assign') + '</button>';
+}
+function assign(id, pfx) {
+  var v = M.$((pfx || '') + 'as-' + id).value;
+  if (!v) return M.toast('Choose a technician', true);
+  M.call('POST', '/api/m/staff/tickets/' + id + '/assign', H(), { tech_id: +v }).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    M.closeSheet(); M.toast('Assigned'); refresh();
+  });
+}
+function teamView() {
+  var h = '<div class="card"><div class="dtitle">Add a technician</div>' +
+    '<label>Name</label><input id="n-name" maxlength="60">' +
+    '<label>Mobile</label><input id="n-mob" inputmode="numeric" maxlength="10">' +
+    '<button class="big" style="margin-top:12px" onclick="addTech()">ADD TECHNICIAN</button></div>';
+  h += '<div class="sec">Technicians (' + DATA.technicians.length + ')</div>';
+  h += DATA.technicians.map(function (x) {
+    return '<div class="tcard"><div class="trow" style="cursor:default"><div class="tl">' +
+      '<div class="ttitle">' + M.esc(x.name) + (x.active ? '' : ' <span class="pill" style="background:#e2e8f0;color:#475569">Off</span>') + '</div>' +
+      '<div class="tmeta">📱 ' + M.esc(x.mobile || '—') + ' · Code <b>' + M.esc(x.code) + '</b></div>' +
+      '<div class="tmeta">' + x.open_jobs + ' open job(s)</div></div></div>' +
+      '<div class="tact"><button class="btn l" onclick="shareCode(\'' + M.esc(x.name) + '\',\'' + M.esc(x.code) + '\')">Share code</button>' +
+      '<button class="btn ' + (x.active ? 'r' : 'g') + '" onclick="toggleTech(' + x.id + ',' + (x.active ? 0 : 1) + ')">' + (x.active ? 'Switch off' : 'Switch on') + '</button></div></div>';
+  }).join('') || '<div class="empty">No technicians yet.</div>';
+  return h;
+}
+function addTech() {
+  var b = { name: M.$('n-name').value.trim(), mobile: M.$('n-mob').value.trim() };
+  if (!b.name) return M.toast('Enter a name', true);
+  M.call('POST', '/api/m/staff/team', H(), b).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    alert('Technician added.\n\nTheir login code is:  ' + j.code + '\n\nUse "Share code" to send it to them on WhatsApp.');
+    refresh();
+  });
+}
+function toggleTech(id, active) {
+  if (!active && !confirm('Switch off this technician? They will not be able to log in.')) return;
+  M.call('POST', '/api/m/staff/team/' + id + '/active', H(), { active: active }).then(function (j) {
+    if (!j.ok) return M.toast(j.error, true); refresh();
+  });
+}
+function shareCode(name, code) {
+  var link = location.href.replace(/[^/]*$/, '') + 'team.html';
+  var txt = 'Hi ' + name + ', SVR Maintenance login:\n1. Open ' + link + '\n2. Enter your code: ' + code + '\n3. Chrome menu ⋮ → Add to Home screen';
+  window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank');
+}
+
+// ----------------------------------------------------------- detail
+function openTicket(id) {
+  M.call('GET', '/api/m/staff/tickets/' + encodeURIComponent(id), H()).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    var t = j.ticket;
+    var acts = ME.role === 'technician' ? techActions(t) : headActions(t, 'd-');
+    var extra = (acts ? '<div class="tact" style="padding:12px 0 0">' + acts + '</div>' : '') +
+      (t.status !== 'Completed' ? '<label>Add a comment</label><textarea id="c-note" maxlength="500"></textarea>' +
+        '<button class="btn" style="margin-top:8px;width:100%" onclick="comment(\'' + t.id + '\')">Send comment</button>' : '');
+    M.openSheet(M.detail(t, extra));
+  });
+}
+function comment(id) {
+  var note = M.$('c-note').value.trim(); if (!note) return;
+  M.call('POST', '/api/m/staff/tickets/' + id + '/comment', H(), { note: note }).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    M.toast('Comment sent'); openTicket(id);
+  });
+}
+
+start();
+setInterval(function () { if (ME && !document.hidden && !(M.$('sheet') && M.$('sheet').className === 'open')) refresh(); }, 60000);
+</script>
+</body>
+</html>

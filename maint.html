@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1e293b">
+<title>SVR Maintenance</title>
+<link rel="icon" type="image/png" href="./logo.png">
+<script src="./maint-common.js"></script>
+</head>
+<body>
+<header>
+  <div class="t">🛠️ Maintenance</div>
+  <div class="s" id="hsub">Loading…</div>
+</header>
+<div class="wrap" id="app"><div class="empty">Loading…</div></div>
+<nav class="tabbar"><a href="./index.html">📋 Daily Tracker</a><a class="on">🛠️ Maintenance</a></nav>
+
+<script>
+// Outlet identity comes from the Daily Tracker activation on this phone
+var OUT = {
+  code: M.ls('code') || '', outlet: M.ls('outlet') || '',
+  person: M.ls('person') || '', mobile: M.ls('mobile') || ''
+};
+function H() { return { 'X-Outlet-Code': OUT.code, 'X-Person': OUT.person, 'X-Mobile': OUT.mobile }; }
+var META = null, TICKETS = [], form = { category: '', priority: '' };
+
+function app(h) { M.$('app').innerHTML = h; }
+
+function start() {
+  if (!OUT.code || !OUT.outlet) {
+    M.$('hsub').textContent = 'Not registered';
+    app('<div class="card"><b>This phone is not registered to an outlet yet.</b><br><br>' +
+        'Open the Daily Tracker first and activate it with your outlet code. Then come back here.</div>' +
+        '<a class="big brand" style="text-align:center;text-decoration:none" href="./index.html">Open Daily Tracker</a>');
+    return;
+  }
+  M.$('hsub').textContent = OUT.outlet + ' · ' + OUT.person;
+  Promise.all([M.call('GET', '/api/m/meta'), M.call('POST', '/api/m/outlet/login', H())]).then(function (r) {
+    var meta = r[0], login = r[1];
+    if (login.offline || meta.offline) {
+      app('<div class="card">📴 <b>Cannot reach the maintenance server.</b><br><br>Check your internet and try again. ' +
+          'Your Daily Tracker still works normally.</div><button class="big" onclick="start()">TRY AGAIN</button>');
+      return;
+    }
+    if (!login.ok) {
+      app('<div class="card">This phone\'s outlet code was not accepted. Please ask your admin.</div>');
+      return;
+    }
+    if (!login.enabled) {
+      app('<div class="card">Maintenance requests are <b>not switched on for ' + M.esc(OUT.outlet) +
+          '</b> yet. Your admin will switch it on soon.</div>');
+      return;
+    }
+    META = meta; load();
+  });
+}
+
+function load() {
+  M.call('GET', '/api/m/outlet/tickets', H()).then(function (j) {
+    if (!j.ok) { M.toast(j.offline ? 'No internet — showing last list' : j.error, true); return; }
+    TICKETS = j.tickets; draw();
+  });
+}
+
+function draw() {
+  var waiting = TICKETS.filter(function (t) { return t.status === 'Pending Manager Confirmation'; });
+  var open = TICKETS.filter(function (t) { return t.status !== 'Completed' && t.status !== 'Pending Manager Confirmation'; });
+  var done = TICKETS.filter(function (t) { return t.status === 'Completed'; });
+  var h = '<button class="big brand" onclick="newForm()">＋ RAISE A REPAIR REQUEST</button>';
+  if (waiting.length) {
+    h += '<div class="sec">Please check and confirm (' + waiting.length + ')</div>';
+    h += '<div class="note">The technician says these are fixed. Check the work, then tap <b>Yes, fixed</b> or <b>Not fixed</b>.</div>';
+    waiting.forEach(function (t) {
+      h += M.card(t, '<button class="btn g" onclick="confirmJob(\'' + t.id + '\')">✓ Yes, fixed</button>' +
+                     '<button class="btn r" onclick="reopenJob(\'' + t.id + '\')">✗ Not fixed</button>');
+    });
+  }
+  h += '<div class="sec">Open requests (' + open.length + ')</div>';
+  h += open.length ? open.map(function (t) { return M.card(t); }).join('') : '<div class="empty">No open requests 👍</div>';
+  if (done.length) {
+    h += '<div class="sec">Completed — last 30 days (' + done.length + ')</div>';
+    h += done.map(function (t) { return M.card(t); }).join('');
+  }
+  app(h);
+}
+
+// ----------------------------------------------------------- new ticket
+function newForm() {
+  form = { category: '', priority: '' };
+  var h = '<div class="dtitle" style="margin-bottom:6px">New repair request</div>' +
+    '<label>What is the problem? *</label><input id="f-title" maxlength="120" placeholder="e.g. Fryer not heating">' +
+    '<label>Category *</label><div class="chips" id="f-cat">' +
+      META.categories.map(function (c) { return '<button class="chip" data-v="' + M.esc(c) + '" onclick="pick(\'category\',this)">' + M.esc(c) + '</button>'; }).join('') +
+    '</div>' +
+    '<label>How urgent? *</label><div class="chips" id="f-pri">' +
+      META.priorities.map(function (p) {
+        return '<button class="chip prichip" data-v="' + M.esc(p[0]) + '" onclick="pick(\'priority\',this)" style="border-color:' + (M.PRI[p[0]] || '#cbd5e1') + '">' +
+          '<b>' + M.esc(p[0]) + ' · ' + p[1] + 'h</b><span>' + M.esc(p[2]) + '</span></button>';
+      }).join('') +
+    '</div>' +
+    '<label>More details (optional)</label><textarea id="f-desc" maxlength="2000" placeholder="What happened, since when, which machine…"></textarea>' +
+    '<label>Where in the outlet? (optional)</label><input id="f-loc" maxlength="120" placeholder="e.g. Main kitchen, 1st floor">' +
+    '<label>Photo (optional)</label><input id="f-photo" type="file" accept="image/*" capture="environment">' +
+    '<button class="big brand" id="f-send" onclick="sendTicket()" style="margin-top:18px">SEND REQUEST</button>';
+  M.openSheet(h);
+}
+function pick(k, el) {
+  form[k] = el.getAttribute('data-v');
+  Array.prototype.forEach.call(el.parentNode.children, function (c) { c.classList.remove('on'); });
+  el.classList.add('on');
+  if (k === 'priority') {
+    Array.prototype.forEach.call(el.parentNode.children, function (c) { c.style.background = ''; c.style.color = ''; });
+    el.style.background = M.PRI[form.priority]; el.style.color = '#fff';
+  }
+}
+function sendTicket() {
+  var title = M.$('f-title').value.trim();
+  if (!title) return M.toast('Write what the problem is', true);
+  if (!form.category) return M.toast('Choose a category', true);
+  if (!form.priority) return M.toast('Choose how urgent it is', true);
+  var btn = M.$('f-send'); btn.disabled = true; btn.textContent = 'Sending…';
+  M.shrinkPhoto(M.$('f-photo').files[0]).then(function (blob) {
+    var fd = new FormData();
+    fd.append('title', title); fd.append('category', form.category); fd.append('priority', form.priority);
+    fd.append('description', M.$('f-desc').value.trim()); fd.append('location', M.$('f-loc').value.trim());
+    if (blob) fd.append('photo', blob, 'problem.jpg');
+    return M.call('POST', '/api/m/outlet/tickets', H(), fd, 60000);
+  }).then(function (j) {
+    if (!j.ok) {
+      btn.disabled = false; btn.textContent = 'SEND REQUEST';
+      return M.toast(j.offline ? 'No internet. Request NOT sent — please try again.' : j.error, true);
+    }
+    M.closeSheet(); M.toast('✅ Request ' + j.id + ' sent to maintenance team'); load();
+  });
+}
+
+// ----------------------------------------------------------- detail + actions
+function openTicket(id) {
+  M.call('GET', '/api/m/outlet/tickets/' + encodeURIComponent(id), H()).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    var t = j.ticket, extra = '';
+    if (t.status === 'Pending Manager Confirmation') {
+      extra = '<div class="note" style="margin-top:12px"><b>Technician says:</b> ' + M.esc(t.tech_done_note || '') +
+        (t.parts_replaced ? '<br><b>Parts:</b> ' + M.esc(t.parts_replaced) : '') + '</div>' +
+        '<div class="tact" style="padding:0"><button class="btn g" onclick="confirmJob(\'' + t.id + '\')">✓ Yes, fixed</button>' +
+        '<button class="btn r" onclick="reopenJob(\'' + t.id + '\')">✗ Not fixed</button></div>';
+    }
+    if (t.status !== 'Completed') {
+      extra += '<label>Add a comment</label><textarea id="c-note" maxlength="500"></textarea>' +
+        '<button class="btn" style="margin-top:8px;width:100%" onclick="comment(\'' + t.id + '\')">Send comment</button>';
+    }
+    M.openSheet(M.detail(t, extra));
+  });
+}
+function confirmJob(id) {
+  var fb = prompt('Work is fixed? Any feedback for the technician (optional):', '');
+  if (fb === null) return;
+  M.call('POST', '/api/m/outlet/tickets/' + id + '/confirm', H(), { feedback: fb }).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    M.closeSheet(); M.toast('✅ Confirmed. Job completed.'); load();
+  });
+}
+function reopenJob(id) {
+  var note = prompt('What is still not working?', '');
+  if (note === null) return;
+  if (!note.trim()) return M.toast('Please write what is still not working', true);
+  M.call('POST', '/api/m/outlet/tickets/' + id + '/reopen', H(), { note: note }).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    M.closeSheet(); M.toast('Sent back to the technician'); load();
+  });
+}
+function comment(id) {
+  var note = M.$('c-note').value.trim();
+  if (!note) return;
+  M.call('POST', '/api/m/outlet/tickets/' + id + '/comment', H(), { note: note }).then(function (j) {
+    if (!j.ok) return M.toast(j.offline ? 'No internet' : j.error, true);
+    M.toast('Comment sent'); openTicket(id);
+  });
+}
+
+start();
+setInterval(function () { if (META && !document.hidden && !(M.$('sheet') && M.$('sheet').className === 'open')) load(); }, 60000);
+</script>
+</body>
+</html>

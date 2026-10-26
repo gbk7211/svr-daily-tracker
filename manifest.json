@@ -1,21 +1,22 @@
 {
   "short_name": "SVR Ops Hub",
-  "name": "SVR Daily Operations & Maintenance Portal",
+  "name": "SVR Sangeetha \u2014 Daily Tracker & Maintenance",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "./icon-192.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "/icon-512.png",
+      "src": "./icon-512.png",
       "type": "image/png",
       "sizes": "512x512"
     }
   ],
-  "start_url": "/",
-  "background_color": "#090d16",
-  "theme_color": "#090d16",
+  "start_url": "./index.html",
+  "background_color": "#f4f5f7",
+  "theme_color": "#7c2d12",
   "display": "standalone",
-  "orientation": "portrait"
+  "orientation": "portrait",
+  "scope": "./"
 }

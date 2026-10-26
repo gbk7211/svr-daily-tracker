@@ -1,42 +1,376 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="./logo.png" />
-    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-    <link rel="manifest" href="./manifest.json" />
-    <meta name="theme-color" content="#f8fafc" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>OIAS — Daily Ops & Maintenance Portal | SVR</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="./assets/index-CUpcWFxO.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-ZsnTVW1a.css">
-  </head>
-  <body class="bg-slate-100 text-slate-900 antialiased font-sans">
-    <div id="root"></div>
-    <script>
-      // Clear legacy PWA caches and force reload fresh light theme assets
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (let registration of registrations) {
-            registration.unregister();
-          }
-        });
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (let name of names) {
-            caches.delete(name);
-          }
-        });
-      }
-    </script>
-  </body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#7c2d12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SVR Tracker">
+<title>SVR Daily Tracker</title>
+<link rel="icon" type="image/png" href="./logo.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="manifest" href="./manifest.json">
+<style>
+  :root{--brand:#7c2d12;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',system-ui,Arial,sans-serif;background:#f4f5f7;color:#222;}
+  header{background:var(--brand);color:#fff;padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top));}
+  header .t{font-size:19px;font-weight:800;}
+  header .s{font-size:13px;color:#ffd9c2;margin-top:2px;}
+  .wrap{padding:14px;max-width:640px;margin:auto;padding-bottom:60px;}
+  .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:14px;
+        box-shadow:0 2px 6px rgba(0,0,0,.07);border-top:4px solid #ccc;}
+  .card.att{border-top-color:#0369a1;} .card.gas{border-top-color:#ea580c;} .card.eb{border-top-color:#16a34a;}
+  .sec{font-size:17px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .badge{font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;}
+  .b-done{background:#d1f5d3;color:#14532d;} .b-pend{background:#ffe4e4;color:#991b1b;}
+  .sub{font-size:12px;color:#666;margin-top:3px;}
+  label{display:block;font-size:13px;color:#555;margin:10px 0 3px;}
+  input{width:100%;border:1.4px solid #cbd5e1;border-radius:9px;padding:12px;font-size:19px;background:#fbfbfb;}
+  input:focus{outline:2px solid var(--brand);}
+  .row{display:flex;gap:10px;} .row>div{flex:1;}
+  .grp{border-top:1px dashed #e2e2e2;padding-top:6px;margin-top:12px;}
+  .grp .nm{font-weight:700;font-size:15px;}
+  button{cursor:pointer;}
+  .savebtn{width:100%;background:var(--brand);color:#fff;border:none;border-radius:10px;
+           padding:14px;font-size:15.5px;font-weight:800;margin-top:14px;letter-spacing:.4px;}
+  .savebtn.done{background:#0369a1;}
+  .savebtn:disabled{opacity:.6;}
+  .bigbtn{width:100%;background:var(--brand);color:#fff;border:none;border-radius:12px;
+          padding:16px;font-size:17px;font-weight:800;margin-top:8px;}
+  .warn{color:#b45309;font-weight:600;font-size:14px;margin-top:8px;}
+  .cons{margin-top:8px;font-size:15.5px;font-weight:700;color:#14532d;}
+  .cons.neg{color:#b91c1c;}
+  .hint{font-size:12.5px;color:#777;text-align:center;margin-top:10px;}
+  .note{background:#fff7ed;border:1px solid #fed7aa;border-radius:9px;padding:10px;font-size:13.5px;margin-bottom:14px;}
+  .banner{padding:9px;text-align:center;color:#fff;font-size:13.5px;}
+  .off{background:#7f1d1d;} .pend{background:#b45309;font-weight:600;}
+  .link{color:#0369a1;text-decoration:underline;cursor:pointer;font-size:14px;}
+  #loading{text-align:center;padding:60px 20px;color:#666;}
+  .brandtop{text-align:center;margin:34px 0 16px;}
+  .brandtop .b1{font-size:27px;font-weight:800;color:var(--brand);}
+  .brandtop .b2{font-size:14.5px;color:#666;}
+  .center{text-align:center;}
+  #maintBar{display:none;position:fixed;left:0;right:0;bottom:0;z-index:30;background:#fff;border-top:1px solid #e2e8f0;
+    box-shadow:0 -2px 10px rgba(0,0,0,.06);padding-bottom:env(safe-area-inset-bottom);}
+  #maintBar a{flex:1;text-align:center;padding:14px 6px;font-weight:800;font-size:15px;text-decoration:none;color:#64748b;}
+  #maintBar a.on{color:#7c2d12;box-shadow:inset 0 3px 0 #7c2d12;}
+  body.hasBar .wrap{padding-bottom:110px;}
+  .teamlink{display:block;text-align:center;margin-top:18px;color:#64748b;font-size:13.5px;}
+</style>
+</head>
+<body>
+<div id="app"><div id="loading">Loading…</div></div>
+<nav id="maintBar"><a class="on">📋 Daily Tracker</a><a href="./maint.html">🛠️ Maintenance</a></nav>
+<script>
+// ===================== CONFIG =====================
+var API = 'https://script.google.com/macros/s/AKfycbzHAQxit9t7djfxG1KXSklYJshq6pwFm7r3g0vMFh9AFeHixG8hR_zTl5595IrlJmrrrw/exec';
+// ==================================================
+
+var S = {
+  code: localStorage.getItem('code') || '',
+  outlet: localStorage.getItem('outlet') || '',
+  person: localStorage.getItem('person') || '',
+  mobile: localStorage.getItem('mobile') || '',
+  meta: JSON.parse(localStorage.getItem('meta') || 'null'),
+  config: JSON.parse(localStorage.getItem('config') || 'null'),
+  lastClose: JSON.parse(localStorage.getItem('lastClose') || 'null'),
+  queue: JSON.parse(localStorage.getItem('queue') || '[]'),
+  online: true, day: null, form: null
+};
+function save(k,v){ localStorage.setItem(k, typeof v==='string'?v:JSON.stringify(v)); }
+function today(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function num(v){ var n=parseFloat(String(v).replace(',','.')); return isNaN(n)?0:n; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+function apiGet(p){ var q=Object.keys(p).map(function(k){return k+'='+encodeURIComponent(p[k]);}).join('&');
+  return fetch(API+'?'+q).then(function(r){return r.json();}); }
+function apiPost(b){ return fetch(API,{method:'POST',body:JSON.stringify(b)}).then(function(r){return r.json();}); }
+function render(h){ document.getElementById('app').innerHTML = h; }
+
+// ===================== SETUP =====================
+function showSetup(msg){
+  render('<div class="wrap"><div class="brandtop"><div class="b1">🏪 SVR Sangeetha</div>'+
+    '<div class="b2">Daily Tracker — One-time Setup</div></div><div class="card">'+
+    (msg?'<p class="warn">'+esc(msg)+'</p>':'')+
+    '<label>Outlet Activation Code (from admin)</label><input id="i-code" autocapitalize="characters" placeholder="e.g. RAMA-4110" value="'+esc(S.code)+'">'+
+    '<label>Your Name</label><input id="i-person" placeholder="e.g. Kumar" value="'+esc(S.person)+'">'+
+    '<label>Your Mobile Number</label><input id="i-mobile" inputmode="numeric" maxlength="10" value="'+esc(S.mobile)+'">'+
+    '<button class="bigbtn" onclick="doActivate()">ACTIVATE THIS DEVICE</button>'+
+    '<p class="hint">Do this once on each phone or outlet laptop. After that it opens straight to your outlet form.</p>'+
+    '</div><a class="teamlink" href="./team.html">Maintenance technician or head? Log in here →</a></div>');
+}
+function doActivate(){
+  var code=document.getElementById('i-code').value.trim().toUpperCase();
+  var person=document.getElementById('i-person').value.trim();
+  var mobile=document.getElementById('i-mobile').value.trim();
+  if(!code||!person||mobile.length<10){ alert('Enter outlet code, your name and 10-digit mobile number.'); return; }
+  render('<div id="loading">Activating…</div>');
+  apiPost({action:'activate',code:code,person:person,mobile:mobile}).then(function(j){
+    if(!j.ok){ showSetup(j.error||'Activation failed'); return; }
+    S.code=code; S.outlet=j.outlet; S.person=person; S.mobile=mobile; S.meta=j.meta; S.config=j.config;
+    save('code',code); save('outlet',j.outlet); save('person',person); save('mobile',mobile);
+    save('meta',j.meta); save('config',j.config);
+    alert('✅ Activated!\nThis device is now linked to '+j.outlet+'.');
+    loadDay();
+  }).catch(function(){ showSetup('Cannot reach server. Check internet and try again.'); });
+}
+function changePerson(){
+  var p=prompt('Enter your name:',S.person); if(!p) return;
+  var m=prompt('Enter your mobile number:',S.mobile); if(!m||m.trim().length<10){ alert('Valid 10-digit mobile needed'); return; }
+  S.person=p.trim(); S.mobile=m.trim(); save('person',S.person); save('mobile',S.mobile); drawDay();
+}
+
+// ===================== LOAD DAY =====================
+function loadDay(){
+  render('<div id="loading">Loading today\'s form…</div>');
+  apiGet({action:'dayform',code:S.code,date:today()}).then(function(j){
+    if(!j.ok){ if(j.error==='code_revoked'){ clearReg('This code was removed by admin. Ask for a new code.'); return; } throw 0; }
+    S.online=true; S.meta=j.meta; S.config=j.config; save('meta',j.meta); save('config',j.config);
+    S.day=j; S.form=buildForm(j); drawDay(); flush();
+  }).catch(function(){
+    S.online=false;
+    if(!S.config){ render('<div class="wrap center" style="padding-top:70px"><p>Cannot reach server and nothing saved on this device yet.<br><br>Check internet and retry.</p><button class="bigbtn" onclick="loadDay()">RETRY</button></div>'); return; }
+    S.day={ ok:true, date:today(), outlet:S.outlet, meta:S.meta, config:S.config,
+            previous:S.lastClose||{gas:[],eb:[]}, prevDates:{gas:'',eb:''},
+            holiday:false, existing:{att:null,gas:null,eb:null} };
+    S.form=buildForm(S.day); drawDay();
+  });
+}
+
+function buildForm(j){
+  var f={att:{total:'',present:'',absent:'',dayoff:''},gas:[],eb:[]};
+  (j.config.gas||[]).forEach(function(g,i){
+    var pv=(j.previous.gas&&j.previous.gas[i]!=null&&j.previous.gas[i]!=='')?j.previous.gas[i]:'';
+    f.gas.push({opening:String(pv),purchase:'0',extra:'0',closing:''});
+  });
+  (j.config.eb||[]).forEach(function(e,i){
+    var pv=(j.previous.eb&&j.previous.eb[i]!=null&&j.previous.eb[i]!=='')?j.previous.eb[i]:'';
+    f.eb.push({opening:String(pv),closing:''});
+  });
+  var ex=j.existing||{};
+  if(ex.att){ f.att={total:ex.att.total,present:ex.att.present,absent:ex.att.absent,dayoff:ex.att.dayoff}; }
+  if(ex.gas){ ex.gas.items.forEach(function(g,i){ if(f.gas[i]) f.gas[i]={opening:String(g.opening),purchase:String(g.purchase),extra:String(g.extra==null?0:g.extra),closing:String(g.closing)}; }); }
+  if(ex.eb){ ex.eb.items.forEach(function(e,i){ if(f.eb[i]) f.eb[i]={opening:String(e.opening),closing:String(e.closing)}; }); }
+  return f;
+}
+
+// ===================== DRAW =====================
+function drawDay(){
+  var j=S.day, d=j.date, ex=j.existing||{};
+  var h='<header><div class="t" onclick="secretTap()">🏪 '+esc(S.outlet)+'</div><div class="s">'+esc(S.person)+' • '+d+
+        ' • <span class="link" style="color:#ffd9c2" onclick="changePerson()">change person</span></div></header>';
+  if(!S.online) h+='<div class="banner off">📴 Offline — saved on this device, will send automatically</div>';
+  if(S.queue.length) h+='<div class="banner pend" onclick="flush(true)">⏳ '+S.queue.length+' saved entry waiting to send — tap to retry</div>';
+  h+='<div class="wrap">';
+  if(j.holiday) h+='<div class="note">🌙 <b>Weekly holiday</b> for '+esc(S.outlet)+' today. No entry is required — the dashboard will not mark this day as missing.</div>';
+  h+='<div class="note">✅ You can save each section separately. Fill attendance now and gas/EB later — whatever is ready.</div>';
+  if(j.meta.att) h+=attCard(ex.att);
+  if((j.config.gas||[]).length) h+=gasCard(ex.gas);
+  if((j.config.eb||[]).length) h+=ebCard(ex.eb);
+  h+='</div>';
+  render(h); refreshCalcs(); maintButton();
+}
+
+function statusBadge(sec){
+  return sec ? '<span class="badge b-done">✓ Saved</span>' : '<span class="badge b-pend">Not saved</span>';
+}
+function savedLine(sec){
+  return sec ? '<div class="sub">Saved by '+esc(sec.by)+' at '+esc(sec.at)+'</div>' : '';
+}
+
+function attCard(ex){
+  var a=S.form.att;
+  return '<div class="card att"><div class="sec"><span>👥 Attendance</span>'+statusBadge(ex)+'</div>'+savedLine(ex)+
+    '<div class="row"><div><label>Total staff</label><input inputmode="numeric" value="'+esc(a.total)+'" oninput="upd(\'att\',0,\'total\',this.value)"></div>'+
+    '<div><label>Present</label><input inputmode="numeric" value="'+esc(a.present)+'" oninput="upd(\'att\',0,\'present\',this.value)"></div></div>'+
+    '<div class="row"><div><label>Absent</label><input inputmode="numeric" value="'+esc(a.absent)+'" oninput="upd(\'att\',0,\'absent\',this.value)"></div>'+
+    '<div><label>Day off</label><input inputmode="numeric" value="'+esc(a.dayoff)+'" oninput="upd(\'att\',0,\'dayoff\',this.value)"></div></div>'+
+    '<div class="warn" id="attwarn" style="display:none">⚠️ Present + Absent + Day off must equal Total</div>'+
+    '<button class="savebtn'+(ex?' done':'')+'" onclick="saveSection(\'att\')">'+(ex?'UPDATE ATTENDANCE':'SAVE ATTENDANCE')+'</button></div>';
+}
+
+function gasCard(ex){
+  var h='<div class="card gas"><div class="sec"><span>🔥 Gas</span>'+statusBadge(ex)+'</div>'+savedLine(ex);
+  S.config.gas.forEach(function(g,i){
+    var v=S.form.gas[i];
+    var src=S.day.prevDates.gas ? 'auto from '+S.day.prevDates.gas+' closing' : 'no previous reading — type it';
+    h+='<div class="grp"><div class="nm">'+esc(g.name)+'</div>'+
+      '<div class="row"><div><label>Opening ('+src+')</label><input inputmode="decimal" value="'+esc(v.opening)+'" oninput="upd(\'gas\','+i+',\'opening\',this.value)"></div>'+
+      '<div><label>Purchased today</label><input inputmode="decimal" value="'+esc(v.purchase)+'" oninput="upd(\'gas\','+i+',\'purchase\',this.value)"></div></div>'+
+      '<div class="row">'+(g.extra?'<div><label>'+esc(g.extra)+'</label><input inputmode="decimal" value="'+esc(v.extra)+'" oninput="upd(\'gas\','+i+',\'extra\',this.value)"></div>':'<div></div>')+
+      '<div><label>Closing count</label><input inputmode="decimal" value="'+esc(v.closing)+'" oninput="upd(\'gas\','+i+',\'closing\',this.value)"></div></div>'+
+      '<div class="cons" id="gc'+i+'"></div></div>';
+  });
+  return h+'<button class="savebtn'+(ex?' done':'')+'" onclick="saveSection(\'gas\')">'+(ex?'UPDATE GAS':'SAVE GAS')+'</button></div>';
+}
+
+function ebCard(ex){
+  var h='<div class="card eb"><div class="sec"><span>⚡ EB Meters</span>'+statusBadge(ex)+'</div>'+savedLine(ex);
+  S.config.eb.forEach(function(e,i){
+    var v=S.form.eb[i];
+    var src=S.day.prevDates.eb ? 'auto from '+S.day.prevDates.eb : 'no previous reading — type it';
+    h+='<div class="grp"><div class="nm">'+esc(e.name)+(e.mult!=1?' (×'+e.mult+')':'')+'</div>'+
+      '<div class="row"><div><label>Opening ('+src+')</label><input inputmode="decimal" value="'+esc(v.opening)+'" oninput="upd(\'eb\','+i+',\'opening\',this.value)"></div>'+
+      '<div><label>Today\'s reading</label><input inputmode="decimal" value="'+esc(v.closing)+'" oninput="upd(\'eb\','+i+',\'closing\',this.value)"></div></div>'+
+      '<div class="cons" id="ec'+i+'"></div></div>';
+  });
+  return h+'<button class="savebtn'+(ex?' done':'')+'" onclick="saveSection(\'eb\')">'+(ex?'UPDATE EB READINGS':'SAVE EB READINGS')+'</button></div>';
+}
+
+function upd(kind,i,f,val){ if(kind==='att') S.form.att[f]=val; else S.form[kind][i][f]=val; refreshCalcs(); }
+
+function refreshCalcs(){
+  var a=S.form.att, w=document.getElementById('attwarn');
+  if(w){ var bad=a.total!=='' && (num(a.total)!==num(a.present)+num(a.absent)+num(a.dayoff)); w.style.display=bad?'block':'none'; }
+  (S.config.gas||[]).forEach(function(g,i){
+    var el=document.getElementById('gc'+i); if(!el) return;
+    var v=S.form.gas[i];
+    if(v.closing===''||v.opening===''){ el.textContent='Consumption: —'; el.className='cons'; return; }
+    var c=num(v.opening)+num(v.purchase)-num(v.closing);
+    el.textContent='Consumption: '+Math.round(c*100)/100; el.className=c<0?'cons neg':'cons';
+  });
+  (S.config.eb||[]).forEach(function(e,i){
+    var el=document.getElementById('ec'+i); if(!el) return;
+    var v=S.form.eb[i];
+    if(v.closing===''||v.opening===''){ el.textContent='Units used: —'; el.className='cons'; return; }
+    var c=num(v.closing)-num(v.opening), t='Units used: '+Math.round(c*10)/10;
+    if(e.mult!=1) t+='  →  '+Math.round(c*e.mult*10)/10+' (×'+e.mult+')';
+    el.textContent=t; el.className=c<0?'cons neg':'cons';
+  });
+}
+
+// ===================== SAVE ONE SECTION =====================
+function saveSection(kind){
+  var body={action:'submit',code:S.code,person:S.person,mobile:S.mobile,date:S.day.date};
+  if(kind==='att'){
+    var a=S.form.att;
+    if(a.total===''||a.present===''||a.absent===''||a.dayoff===''){ alert('Fill all 4 attendance fields before saving attendance.'); return; }
+    if(num(a.total)!==num(a.present)+num(a.absent)+num(a.dayoff)){ alert('Attendance mismatch:\nPresent + Absent + Day off must equal Total staff.'); return; }
+    body.attendance={total:num(a.total),present:num(a.present),absent:num(a.absent),dayoff:num(a.dayoff)};
+  }
+  if(kind==='gas'){
+    var any=false, negs=[];
+    for(var i=0;i<S.config.gas.length;i++){
+      var v=S.form.gas[i];
+      if(v.opening===''&&v.closing==='') continue;
+      if(v.opening===''||v.closing===''){ alert('For "'+S.config.gas[i].name+'" enter both opening and closing (or leave both blank).'); return; }
+      any=true;
+      if(num(v.opening)+num(v.purchase)-num(v.closing)<0) negs.push(S.config.gas[i].name);
+    }
+    if(!any){ alert('Enter at least one gas reading before saving.'); return; }
+    if(negs.length && !confirm('⚠️ Consumption is NEGATIVE for: '+negs.join(', ')+'\n\nSave anyway?')) return;
+    body.gas=S.form.gas.map(function(v){ return {opening:num(v.opening),purchase:num(v.purchase),extra:num(v.extra),closing:num(v.closing)}; });
+  }
+  if(kind==='eb'){
+    var any2=false, negs2=[];
+    for(var k=0;k<S.config.eb.length;k++){
+      var e=S.form.eb[k];
+      if(e.opening===''&&e.closing==='') continue;
+      if(e.opening===''||e.closing===''){ alert('For "'+S.config.eb[k].name+'" enter both opening and today\'s reading (or leave both blank).'); return; }
+      any2=true;
+      if(num(e.closing)-num(e.opening)<0) negs2.push(S.config.eb[k].name);
+    }
+    if(!any2){ alert('Enter at least one EB meter reading before saving.'); return; }
+    if(negs2.length && !confirm('⚠️ Consumption is NEGATIVE for: '+negs2.join(', ')+'\n\nSave anyway?')) return;
+    body.eb=S.form.eb.map(function(v){ return {opening:num(v.opening),closing:num(v.closing)}; });
+  }
+  rememberClosings();
+  apiPost(body).then(function(j){
+    if(!j.ok){ if(j.error==='code_revoked'){ clearReg('This code was removed by admin.'); return; } throw 0; }
+    alert('✅ '+j.saved.join(' + ')+' saved for '+S.outlet+'.');
+    loadDay();
+  }).catch(function(){
+    S.queue=S.queue.filter(function(q){ return !(q.date===body.date && sameKind(q,body)); });
+    S.queue.push(body); save('queue',S.queue);
+    S.online=false;
+    alert('📴 Saved on this device.\nNo internet right now — it will be sent automatically when connection is back.');
+    drawDay();
+  });
+}
+function sameKind(a,b){ return (!!a.attendance===!!b.attendance)&&(!!a.gas===!!b.gas)&&(!!a.eb===!!b.eb); }
+function rememberClosings(){
+  S.lastClose={ gas:S.form.gas.map(function(v){ return v.closing===''?'':num(v.closing); }),
+                eb:S.form.eb.map(function(v){ return v.closing===''?'':num(v.closing); }) };
+  save('lastClose',S.lastClose);
+}
+
+function flush(manual){
+  if(!S.queue.length){ if(manual) alert('Nothing waiting.'); return; }
+  var item=S.queue[0];
+  apiPost(item).then(function(j){
+    if(j.ok||j.error==='code_revoked'){
+      S.queue.shift(); save('queue',S.queue);
+      if(S.queue.length) flush(); else if(manual){ alert('✅ All pending entries sent.'); loadDay(); } else drawDay();
+    }
+  }).catch(function(){});
+}
+setInterval(function(){ flush(); }, 30000);
+
+// ---- admin only: tap the outlet name 5 times, then enter admin PIN ----
+var tapN = 0, tapT = 0;
+function secretTap(){
+  var now = Date.now();
+  if (now - tapT > 2500) tapN = 0;
+  tapT = now; tapN++;
+  if (tapN < 5) return;
+  tapN = 0;
+  var pin = prompt('Admin PIN required to change the outlet on this device:');
+  if (!pin) return;
+  apiGet({ action:'log', pin:pin.trim() }).then(function(j){
+    if (!j.ok) { alert('Wrong PIN. This device stays registered to ' + S.outlet + '.'); return; }
+    logoutDevice();
+  }).catch(function(){ alert('No internet. Connect first, then try again.'); });
+}
+
+function logoutDevice(){
+  if(S.queue.length){
+    if(!confirm('⚠️ '+S.queue.length+' saved entry has NOT been sent to the server yet.\n\nLogging out will delete it. Continue?')) return;
+  } else if(!confirm('Unregister this device from '+S.outlet+'?\n\nAn activation code will be needed to register again.')) return;
+  ['code','outlet','person','mobile','config','meta','lastClose','queue'].forEach(function(k){ localStorage.removeItem(k); });
+  S.code=''; S.outlet=''; S.person=''; S.mobile=''; S.config=null; S.meta=null; S.lastClose=null; S.queue=[];
+  showSetup('Logged out. Enter the new outlet code to register this device.');
+}
+
+function clearReg(msg){
+  ['code','outlet','config','meta'].forEach(function(k){ localStorage.removeItem(k); });
+  S.code=''; S.outlet=''; S.config=null; S.meta=null; showSetup(msg);
+}
+
+// ===================== MAINTENANCE BUTTON (outlet-by-outlet) =====================
+// Shows only if admin switched maintenance ON for this outlet on the maintenance
+// server. Any failure here just hides the button — the tracker is never affected.
+var MAINT_API = 'https://svr.oias-ops.online';
+try { if (localStorage.getItem('maintApiOverride')) MAINT_API = localStorage.getItem('maintApiOverride'); } catch (e) {}
+var maintChecked = '';
+function maintButton(){
+  try {
+    var bar = document.getElementById('maintBar');
+    var show = function (on) { bar.style.display = on ? 'flex' : 'none'; document.body.classList.toggle('hasBar', !!on); };
+    if (!S.outlet) { show(false); return; }
+    var key = 'maintOn_' + S.outlet;
+    show(localStorage.getItem(key) === '1');
+    if (maintChecked === S.outlet) return;          // ask the server once per page load
+    maintChecked = S.outlet;
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    if (ctrl) setTimeout(function(){ ctrl.abort(); }, 6000);
+    fetch(MAINT_API + '/api/m/enabled?outlet=' + encodeURIComponent(S.outlet), ctrl ? { signal: ctrl.signal } : {})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if (!j || !j.ok) return;
+        localStorage.setItem(key, j.enabled ? '1' : '0');
+        show(j.enabled);
+      }).catch(function(){ /* server unreachable: keep last known state */ });
+  } catch (e) {}
+}
+
+// Remove leftovers of the earlier Antigravity version (service worker + caches)
+try {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistrations().then(function(rs){ rs.forEach(function(r){ r.unregister(); }); });
+  if ('caches' in window) caches.keys().then(function(ks){ ks.forEach(function(k){ caches.delete(k); }); });
+} catch (e) {}
+
+if(S.code && S.outlet) loadDay(); else showSetup();
+</script>
+</body>
 </html>

@@ -7,6 +7,7 @@
 <title>SVR Maintenance</title>
 <link rel="icon" type="image/png" href="./logo.png">
 <script src="./maint-common.js"></script>
+<script src="./maint-demo.js"></script>
 </head>
 <body>
 <header>
@@ -22,6 +23,7 @@ var OUT = {
   code: M.ls('code') || '', outlet: M.ls('outlet') || '',
   person: M.ls('person') || '', mobile: M.ls('mobile') || ''
 };
+if (window.MDEMO) OUT = MDEMO.out;
 function H() { return { 'X-Outlet-Code': OUT.code, 'X-Person': OUT.person, 'X-Mobile': OUT.mobile }; }
 var META = null, TICKETS = [], form = { category: '', priority: '' };
 

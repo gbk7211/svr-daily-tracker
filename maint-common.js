@@ -126,7 +126,7 @@ M.detail = function (t, extraHtml) {
   if (t.description) h += '<div class="ddesc">' + M.esc(t.description) + '</div>';
   if (t.photos && t.photos.length) {
     h += '<div class="photos">' + t.photos.map(function (p) {
-      var src = MAINT_API + p.url;
+      var src = /^(data|blob):/.test(p.url) ? p.url : MAINT_API + p.url;
       return '<a href="' + M.esc(src) + '" target="_blank" rel="noopener"><img src="' + M.esc(src) + '" alt="">' +
         '<span>' + (p.kind === 'after' ? 'After repair' : 'Problem') + '</span></a>';
     }).join('') + '</div>';

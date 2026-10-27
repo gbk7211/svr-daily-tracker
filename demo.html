@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1e293b">
+<title>Maintenance Demo</title>
+<link rel="icon" type="image/png" href="./logo.png">
+<script src="./maint-common.js"></script>
+<style>
+  .role{display:flex;gap:14px;align-items:center;background:#fff;border-radius:14px;padding:16px;margin-bottom:12px;
+        box-shadow:0 1px 4px rgba(0,0,0,.08);text-decoration:none;color:var(--ink);border-left:6px solid var(--m)}
+  .role .ic{font-size:34px}.role b{display:block;font-size:17.5px}.role span{font-size:13.5px;color:#475569}
+  .flow{counter-reset:s;list-style:none;padding:0;margin:0}
+  .flow li{position:relative;padding:0 0 12px 40px;font-size:14.5px}
+  .flow li:before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-2px;width:28px;height:28px;border-radius:50%;
+        background:var(--m);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:14px}
+  .demo{background:#fde047;color:#422006;font-weight:800;font-size:13.5px;text-align:center;padding:7px 10px}
+</style>
+</head>
+<body>
+<div class="demo">DEMO — sample data only, nothing is sent</div>
+<header>
+  <div class="t">🛠️ Maintenance — How it works</div>
+  <div class="s">SVR Sangeetha · coming soon to your outlet</div>
+</header>
+<div class="wrap" style="padding-bottom:40px">
+
+  <div class="card">
+    <div class="dtitle" style="margin-bottom:12px">A repair job, start to finish</div>
+    <ol class="flow">
+      <li><b>Outlet manager</b> raises the problem from the Daily Tracker app — what, where, how urgent, photo if needed.</li>
+      <li><b>Maintenance head</b> sees it immediately and assigns a technician.</li>
+      <li><b>Technician</b> accepts the job and starts work. If it gets delayed, he must give the reason (spare parts, vendor…).</li>
+      <li>Technician marks <b>work done</b> with a note and an after-photo.</li>
+      <li><b>Outlet manager checks</b> and taps <b>“Yes, fixed”</b> — or “Not fixed”, which sends it back.</li>
+      <li>The job closes only when <b>both</b> say done. Management sees every job and every delay.</li>
+    </ol>
+  </div>
+
+  <div class="sec">Try each person's screen</div>
+  <a class="role" style="border-left-color:#7c2d12" href="./maint.html?demo=1">
+    <div class="ic">🏪</div><div><b>Outlet manager</b><span>Raise a request · check and confirm finished jobs</span></div></a>
+  <a class="role" style="border-left-color:#1d4ed8" href="./team.html?demo=head">
+    <div class="ic">🧑‍💼</div><div><b>Maintenance head</b><span>Assign technicians · watch overdue jobs</span></div></a>
+  <a class="role" style="border-left-color:#6d28d9" href="./team.html?demo=tech">
+    <div class="ic">👷</div><div><b>Technician</b><span>Accept · start · report delay · mark done</span></div></a>
+
+  <div class="note" style="margin-top:16px">
+    <b>Tip for the demo:</b> raise a request as the outlet manager → open Maintenance head and assign it to
+    <b>Ravi</b> → open Technician and accept, start, mark done → back to Outlet manager and tap <b>Yes, fixed</b>.
+  </div>
+
+  <button class="btn l" style="width:100%" onclick="resetDemo()">↺ Reset demo data</button>
+  <p style="text-align:center;font-size:13px;color:#64748b;margin-top:16px">
+    Your Daily Tracker is not affected by this demo. We will tell you when Maintenance is switched on for your outlet.</p>
+</div>
+<script>
+function resetDemo() {
+  try { localStorage.removeItem('maintDemoDB'); } catch (e) {}
+  M.toast('Demo data reset');
+}
+</script>
+</body>
+</html>

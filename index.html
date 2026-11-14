@@ -342,7 +342,10 @@ function clearReg(msg){
 // server. Any failure here just hides the button — the tracker is never affected.
 var MAINT_API = 'https://svr.oias-ops.online';
 try { if (localStorage.getItem('maintApiOverride')) MAINT_API = localStorage.getItem('maintApiOverride'); } catch (e) {}
-var maintChecked = '';
+var maintChecked = '', maintCheckedAt = 0;
+// re-check when the outlet reopens the app from the background
+document.addEventListener('visibilitychange', function(){ if (!document.hidden) { try { maintButton(); } catch (e) {} } });
+setInterval(function(){ if (!document.hidden) { try { maintButton(); } catch (e) {} } }, 300000);
 function maintButton(){
   try {
     var bar = document.getElementById('maintBar');
@@ -350,8 +353,9 @@ function maintButton(){
     if (!S.outlet) { show(false); return; }
     var key = 'maintOn_' + S.outlet;
     show(localStorage.getItem(key) === '1');
-    if (maintChecked === S.outlet) return;          // ask the server once per page load
-    maintChecked = S.outlet;
+    // ask the server again at most once a minute (also when the app is reopened)
+    if (maintChecked === S.outlet && Date.now() - maintCheckedAt < 60000) return;
+    maintChecked = S.outlet; maintCheckedAt = Date.now();
     var ctrl = ('AbortController' in window) ? new AbortController() : null;
     if (ctrl) setTimeout(function(){ ctrl.abort(); }, 6000);
     fetch(MAINT_API + '/api/m/enabled?outlet=' + encodeURIComponent(S.outlet), ctrl ? { signal: ctrl.signal } : {})

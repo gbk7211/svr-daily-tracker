@@ -36,6 +36,7 @@
 </head>
 <body>
 <div id="app"></div>
+<script src="./tracker-payroll.js"></script>
 <script>
 // ===================== CONFIG =====================
 var API = 'https://script.google.com/macros/s/AKfycbzHAQxit9t7djfxG1KXSklYJshq6pwFm7r3g0vMFh9AFeHixG8hR_zTl5595IrlJmrrrw/exec';
@@ -146,7 +147,8 @@ function drawDay(){
     '&nbsp; or pick a date: <input type="date" id="rd" value="'+d+'"> '+
     '<button class="btn btn2" onclick="reportDate=document.getElementById(\'rd\').value; load(reportDate.substring(0,7),\'day\')">Show</button> '+
     '<div style="margin-top:8px"><span class="chip">Attendance / Gas / EB come from the app automatically</span>'+
-    '<span class="chip">GRN &amp; Cost Center Transfer — you tick after checking Petpooja</span></div></div>';
+    '<span class="chip">GRN &amp; Cost Center Transfer — you tick after checking Petpooja</span>'+
+    '<span class="chip">Payroll — automatic from the punch report you upload</span></div>'+payTopBar(d)+'</div>';
   var pendCount=0, rows='';
   DATA.outlets.forEach(function(o){
     var meta=DATA.meta[o], st=cellState(o,d);
@@ -171,6 +173,7 @@ function drawDay(){
       if(meta.eb  && !(c&&c.e)) pend.push('EB Reading');
       if(!pp.grn) pend.push('Vendor Bill GRN');
       if(!pp.transfer) pend.push('Cost Center Transfer');
+      var pk=payCheck(o,d); if(!pk.na && !pk.done) pend.push('Payroll '+pk.text);
     }
     pendCount+=pend.length;
 
@@ -184,6 +187,7 @@ function drawDay(){
         '<td class="'+(pp.transfer?'okcell':'ncell')+'"><input type="checkbox" id="trf-'+oid+'" '+(pp.transfer?'checked':'')+
         ' onchange="savePP(\''+esc(o)+'\',\''+oid+'\')">'+
         (pp.transfer?'':'<input class="rin" id="r-trf-'+oid+'" value="'+esc(rs.trf||'')+'" placeholder="reason…" onchange="savePP(\''+esc(o)+'\',\''+oid+'\')">')+'</td>';
+    rows+=payCellHtml(o,d,isHol);
     rows+='<td class="left" style="font-size:12px;color:#b91c1c">'+esc(pend.join(', '))+'</td></tr>';
   });
   h+='<div class="card"><b>'+d+' — '+pendCount+' check'+(pendCount===1?'':'s')+' pending across all outlets</b>'+
@@ -191,6 +195,7 @@ function drawDay(){
      '<div class="scroll"><table><tr><th class="left">Outlet</th><th>Attendance</th><th>Gas Reading</th><th>EB Reading</th>'+
      '<th>Vendor Bill GRN<br><span style="font-weight:400;font-size:11px">Petpooja</span></th>'+
      '<th>Cost Center Transfer<br><span style="font-weight:400;font-size:11px">Petpooja</span></th>'+
+     '<th>Payroll<br><span style="font-weight:400;font-size:11px">punch report</span></th>'+
      '<th class="left">Pending</th></tr>'+rows+'</table></div>'+
      '<p style="font-size:13px;color:#555">Each pending check has its own reason box. Ticks and reasons save instantly to the Petpooja tab of the Google Sheet.</p></div>';
   render(h);
@@ -225,6 +230,7 @@ function copyReport(){
     if(meta.eb  && !(c&&c.e)) pend.push('EB'+(rs.e?' ('+rs.e+')':''));
     if(!pp.grn) pend.push('Vendor Bill GRN'+(rs.grn?' ('+rs.grn+')':''));
     if(!pp.transfer) pend.push('Cost Center Transfer'+(rs.trf?' ('+rs.trf+')':''));
+    var pk=payCheck(o,d); if(!pk.na && !pk.done) pend.push('Payroll '+pk.text+' ('+pk.issues.join('; ')+')');
     lines.push(o+': '+(pend.length?'PENDING — '+pend.join('; '):'All done'));
   });
   var txt=lines.join('\n');

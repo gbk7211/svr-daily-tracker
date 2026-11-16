@@ -84,9 +84,7 @@ function load(month,v){
     if(j.latest && j.latest!==latestKnown){
       latestKnown=j.latest;
       // on the very first open, snap the report to the latest date that has data
-      // the owner report is for the previous day (punch report arrives the next morning), so open on
-      // yesterday — or on the latest date with data if that is earlier
-      if(!window.__snapped){ window.__snapped=true; reportDate=(j.latest<yesterdayStr()?j.latest:yesterdayStr());
+      if(!window.__snapped){ window.__snapped=true; reportDate=j.latest;
         if(j.latest.substring(0,7)!==month){ load(j.latest.substring(0,7),view); return; } }
     }
     draw();
@@ -144,9 +142,8 @@ function drawDay(){
   var isLatest = (d===latestKnown);
   var h=nav()+'<div class="wrap"><div class="card">'+
     '<div style="font-size:15px;font-weight:700;margin-bottom:8px">Showing date: '+d+
-      (d===yesterdayStr()?'  <span style="color:#15803d">(yesterday — report day)</span>':isLatest?'  <span style="color:#0369a1">(today — entries still coming in)</span>':'  <span style="color:#b45309">(older date)</span>')+'</div>'+
-    '<button class="btn" onclick="reportDate=yesterdayStr();load(reportDate.substring(0,7),\'day\')">Yesterday (report day)</button> '+
-    '<button class="btn" style="background:#64748b" onclick="reportDate=latestKnown;load(reportDate.substring(0,7),\'day\')">Today\'s entries</button> '+
+      (isLatest?'  <span style="color:#15803d">(latest — what workers just entered)</span>':'  <span style="color:#b45309">(older date)</span>')+'</div>'+
+    '<button class="btn" onclick="reportDate=latestKnown;load(reportDate.substring(0,7),\'day\')">Latest entries</button> '+
     '&nbsp; or pick a date: <input type="date" id="rd" value="'+d+'"> '+
     '<button class="btn btn2" onclick="reportDate=document.getElementById(\'rd\').value; load(reportDate.substring(0,7),\'day\')">Show</button> '+
     '<div style="margin-top:8px"><span class="chip">Attendance / Gas / EB come from the app automatically</span>'+

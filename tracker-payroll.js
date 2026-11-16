@@ -74,7 +74,7 @@ function payCellHtml(o, d, isHol) {
   if (P.loading) return '<td style="color:#999;font-size:12px">loading…</td>';
   if (P.error) return '<td style="color:#999;font-size:12px">' + esc(P.error) + '</td>';
   var k = payCheck(o, d);
-  if (k.na) return '<td style="color:#999;font-size:12px">' + (k.nodata ? 'no payroll data' : '—') + '</td>';
+  if (k.na) return '<td style="color:#999;font-size:12px">' + (!Object.keys(P.outlets || {}).length ? 'no file for this date' : k.nodata ? 'not in payroll file' : '—') + '</td>';
   var s = k.s;
   return '<td class="' + (k.done ? 'okcell' : 'ncell') + '"><span class="' + (k.done ? 'y' : 'n') + '" style="font-size:15px">' + k.text + '</span>' +
     '<div style="font-size:11px;color:#555">' + s.present + '/' + (s.headcount || '?') + ' · ' + s.errors + ' err</div>' +
@@ -91,7 +91,8 @@ function payTopBar(d) {
     var u = P.last_upload;
     var has = Object.keys(P.outlets).length;
     info = u ? 'Last file uploaded ' + esc(u.at) + ' (covers ' + esc(u.first_date) + ' to ' + esc(u.last_date) + ')' : 'No file uploaded yet';
-    if (!has) info += ' · <b style="color:#b45309">no payroll data for ' + d + ' — upload a newer file</b>';
+    if (!has && u) info += '<br><b style="color:#b45309">⚠ The punch file has no data for ' + d + '.</b> It covers ' + esc(u.first_date) + ' to ' + esc(u.last_date) +
+      ' → <button class="btn btn2" style="padding:3px 10px" onclick="reportDate=\'' + u.last_date + '\';load(reportDate.substring(0,7),\'day\')">Show ' + esc(u.last_date) + '</button>';
     info += ' · target ' + P.target + '%';
   }
   return '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #ddd">' +

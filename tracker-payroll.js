@@ -7,6 +7,10 @@
 var PAY_API = 'https://svr.oias-ops.online';
 try { if (localStorage.getItem('maintApiOverride')) PAY_API = localStorage.getItem('maintApiOverride'); } catch (e) {}
 var PAY = {};            // date -> server answer
+// Punch report for a day is only complete the next morning, so the payroll check
+// for report date D always uses the punches of D-1.
+function payDate(d) { var p = d.split('-'), t = new Date(+p[0], +p[1] - 1, +p[2] - 1);
+  return t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0'); }
 var PAY_BUSY = {};
 
 function payPin(ask) {
@@ -39,7 +43,7 @@ function payFor(d) {
     payCall('GET', '/api/m/admin/payroll/day?date=' + d).then(function (j) {
       PAY_BUSY[d] = false;
       PAY[d] = j.ok ? j : { error: j.error || 'error' };
-      if (view === 'day' && reportDate === d) draw();
+      if (view === 'day' && payDate(reportDate) === d) draw();
     }).catch(function () { PAY_BUSY[d] = false; PAY[d] = { error: 'Cannot reach payroll server' }; if (view === 'day') draw(); });
   }
   return { loading: true };
@@ -48,12 +52,12 @@ function payConnect() { if (payPin(true)) { PAY = {}; draw(); } }
 
 // ---- one outlet's payroll check for date d
 // returns {na:true} when it should not count, else {done, pct, text, detail, device}
-function payCheck(o, d) {
-  var P = PAY[d];
+function payCheck(o, rd) {
+  var d = payDate(rd), P = PAY[d];
   if (!P || !P.ok) return { na: true };
   var s = P.outlets[o];
   if (!s) return { na: true, nodata: true };
-  var c = (DATA.grid[o] && DATA.grid[o][d]) || null;
+  var c = (DATA.grid[o] && DATA.grid[o][d]) || null;   // tracker attendance on the same (punch) day
   var issues = (s.issues || []).slice();
   var device = s.present === 0 && s.roll > 0;
   if (device && c && c.a) issues.push('Tracker shows attendance entered but payroll has 0 punches');
@@ -67,13 +71,13 @@ function payCheck(o, d) {
 }
 
 // ---- table cell for the Daily Report
-function payCellHtml(o, d, isHol) {
-  if (isHol) return '<td><span style="color:#bbb">—</span></td>';
+function payCellHtml(o, rd, isHol) {
+  var d = payDate(rd);
   var P = PAY[d] || payFor(d);
   if (P.needPin) return '<td><a href="#" onclick="payConnect();return false" style="font-size:12px">enter PIN</a></td>';
   if (P.loading) return '<td style="color:#999;font-size:12px">loading…</td>';
   if (P.error) return '<td style="color:#999;font-size:12px">' + esc(P.error) + '</td>';
-  var k = payCheck(o, d);
+  var k = payCheck(o, rd);
   if (k.na) return '<td style="color:#999;font-size:12px">' + (!Object.keys(P.outlets || {}).length ? 'no file for this date' : k.nodata ? 'not in payroll file' : '—') + '</td>';
   var s = k.s;
   return '<td class="' + (k.done ? 'okcell' : 'ncell') + '"><span class="' + (k.done ? 'y' : 'n') + '" style="font-size:15px">' + k.text + '</span>' +
@@ -82,17 +86,18 @@ function payCellHtml(o, d, isHol) {
 }
 
 // ---- bar at the top of the Daily Report
-function payTopBar(d) {
-  var P = PAY[d] || payFor(d), info;
+function payTopBar(rd) {
+  var d = payDate(rd), P = PAY[d] || payFor(d), info;
   if (P.needPin) info = '<a href="#" onclick="payConnect();return false">Connect payroll (Maintenance admin PIN)</a>';
   else if (P.loading) info = 'loading…';
   else if (P.error) info = '<span style="color:#b91c1c">' + esc(P.error) + '</span>';
   else {
     var u = P.last_upload;
     var has = Object.keys(P.outlets).length;
-    info = u ? 'Last file uploaded ' + esc(u.at) + ' (covers ' + esc(u.first_date) + ' to ' + esc(u.last_date) + ')' : 'No file uploaded yet';
+    info = 'punches of <b>' + d + '</b> (day before the report date) · ' +
+      (u ? 'Last file uploaded ' + esc(u.at) + ' (covers ' + esc(u.first_date) + ' to ' + esc(u.last_date) + ')' : 'No file uploaded yet');
     if (!has && u) info += '<br><b style="color:#b45309">⚠ The punch file has no data for ' + d + '.</b> It covers ' + esc(u.first_date) + ' to ' + esc(u.last_date) +
-      ' → <button class="btn btn2" style="padding:3px 10px" onclick="reportDate=\'' + u.last_date + '\';load(reportDate.substring(0,7),\'day\')">Show ' + esc(u.last_date) + '</button>';
+      ' — upload the newer punch report.';
     info += ' · target ' + P.target + '%';
   }
   return '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed #ddd">' +
@@ -158,7 +163,7 @@ var CHECKS = [
   { k: 'a', label: 'Attendance', short: 'Attendance' },
   { k: 'g', label: 'Gas Reading & Consumption', short: 'Gas' },
   { k: 'e', label: 'EB Reading & Consumption', short: 'EB' },
-  { k: 'pay', label: 'Payroll Punch', short: 'Payroll' }
+  { k: 'pay', label: 'Payroll Punch (prev. day)', short: 'Payroll' }
 ];
 var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 function longDate(d) { var p = d.split('-'); return (+p[2]) + ' ' + MONTHS[+p[1] - 1] + ' ' + p[0]; }
@@ -189,7 +194,7 @@ function streakOf(o, d, k) {
   return { n: n, fullMonth: x.substring(0, 7) !== month && n > 1 };
 }
 function displayName(o, d) {
-  var P = PAY[d], br = P && P.ok && P.outlets[o] && P.outlets[o].branch;
+  var P = PAY[payDate(d)], br = P && P.ok && P.outlets[o] && P.outlets[o].branch;
   return (br && /fast\s*foods/i.test(br) ? 'Sangeetha Fast Foods – ' : 'Sangeetha – ') + o;
 }
 
@@ -287,10 +292,10 @@ function ownerReportHtml(d) {
   });
   h += '</div>';
   // payroll snapshot table
-  var P = PAY[d];
+  var P = PAY[payDate(d)];
   if (P && P.ok && Object.keys(P.outlets).length) {
     var list = Object.keys(P.outlets).map(function (k) { return P.outlets[k]; }).sort(function (a, b) { return a.pct - b.pct; });
-    h += '<div class="progress-wrap" style="margin-top:16px;overflow-x:auto"><div class="progress-label"><span>👥 Payroll Punch — ' + longDate(d) +
+    h += '<div class="progress-wrap" style="margin-top:16px;overflow-x:auto"><div class="progress-label"><span>👥 Payroll Punch — ' + longDate(payDate(d)) + ' (previous day)' +
       '</span><span>target ' + P.target + '%</span></div><table class="pt"><tr><th>Outlet</th><th>Present / Staff</th><th>Payroll %</th>' +
       '<th>Punch errors</th><th>No record</th><th>7+ days absent</th></tr>';
     list.forEach(function (s) {
@@ -306,11 +311,11 @@ function ownerReportHtml(d) {
 }
 
 function ownerReport() {
-  var d = reportDate, P = PAY[d];
+  var d = reportDate, P = PAY[payDate(d)];
   if (!P || !P.ok) {
-    if (!confirm('Payroll data is not loaded for ' + d + ' — make the report without the Payroll check?')) return;
+    if (!confirm('Payroll data is not loaded for ' + payDate(d) + ' — make the report without the Payroll check?')) return;
   } else if (!Object.keys(P.outlets).length) {
-    if (!confirm('The uploaded punch report has no data for ' + d + '. Make the report without Payroll?')) return;
+    if (!confirm('The uploaded punch report has no data for ' + payDate(d) + '. Make the report without Payroll?')) return;
   }
   var html = ownerReportHtml(d);
   var name = 'Sangeetha_Outlet_Tracker_' + d + '.html';

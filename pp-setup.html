@@ -39,9 +39,12 @@
   </div>
 </div>
 <script>
-var OUTLETS=['Guindy','Kovilambakkam','Medavakkam','Mylapore','Nandambakkam','OMR','Perungalathur','Poonamallee','RA Puram','RA Puram A-C','Ramapuram','Santhome','Urapakkam','DLF Cyber City'];
-var KNOWN={'Guindy':'112218','RA Puram':'112212','OMR':'460741'};
-var saved={}; try{ saved=JSON.parse(localStorage.getItem('ppIds')||'{}'); }catch(e){}
+var OUTLETS=['Guindy','Kovilambakkam','Medavakkam','Mylapore','Nandambakkam','OMR','Perungalathur','Poonamallee','RA Puram','Ramapuram','Santhome','Urapakkam','DLF Cyber City'];
+// Petpooja restaurant IDs (from the outlet list in Petpooja)
+var KNOWN={'Guindy':'112218','Kovilambakkam':'112242','Medavakkam':'333319','Mylapore':'112209','Nandambakkam':'112231',
+  'OMR':'460741','Perungalathur':'112244','Poonamallee':'112248','RA Puram':'112212','Ramapuram':'410625',
+  'Santhome':'112216','Urapakkam':'112246','DLF Cyber City':'126183'};
+var saved={}; try{ saved=JSON.parse(localStorage.getItem('ppIds2')||'{}'); }catch(e){}
 var t=document.getElementById('t');
 OUTLETS.forEach(function(o,i){
   var v=saved[o]!=null?saved[o]:(KNOWN[o]||'');
@@ -54,7 +57,7 @@ function build(){
   var list=[], ids={};
   OUTLETS.forEach(function(o,i){ var v=document.getElementById('i'+i).value.trim(); ids[o]=v; if(/^\d+$/.test(v)) list.push({id:v,name:o}); });
   var min=parseInt(document.getElementById('min').value,10)||3;
-  try{ localStorage.setItem('ppIds',JSON.stringify(ids)); localStorage.setItem('ppMin',String(min)); }catch(e){}
+  try{ localStorage.setItem('ppIds2',JSON.stringify(ids)); localStorage.setItem('ppMin',String(min)); }catch(e){}
   if(!list.length){ alert('Enter at least one restaurant ID.'); return; }
   fetch('./pp-check.js?v='+Date.now()).then(function(r){return r.text();}).then(function(src){
     src=src.replace('__OUTLETS__',JSON.stringify(list)).replace('__MINTRF__',String(min));

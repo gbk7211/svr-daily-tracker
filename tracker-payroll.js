@@ -188,6 +188,8 @@ function streakOf(o, d, k) {
   while (x.substring(0, 7) === month) {
     var p = pendingOn(o, x, k);
     if (p === false) break;
+    // GRN / Transfer: a day with no saved tick is unknown — don't count it as "not done"
+    if ((k === 'grn' || k === 'trf') && x !== d && !DATA.petpooja[o + '|' + x]) break;
     if (p === true) n++;
     x = prevDay(x);
   }
@@ -219,8 +221,15 @@ function ownerReportData(d) {
       if (p) {
         var sk = streakOf(o, d, c.k), rk = { a: 'a', g: 'g', e: 'e', grn: 'grn', trf: 'trf' }[c.k];
         var span = sk.fullMonth ? 'not done since 1st of the month' : (sk.n > 1 ? 'not done for last ' + sk.n + ' days' : 'not updated');
-        reason = (rs[rk] ? rs[rk] + ' · ' : '') + span.charAt(0).toUpperCase() + span.slice(1);
-        brief = c.short + (sk.fullMonth ? ' (full month)' : sk.n > 1 ? ' (' + sk.n + ' days)' : '');
+        if ((c.k === 'grn' || c.k === 'trf') && rs[rk]) {
+          // the reason (typed by you or written by the Petpooja check) already says how long — use it as is
+          reason = rs[rk];
+          var dm = rs[rk].match(/(\d+\+?) days?/);
+          brief = c.short + (dm ? ' (' + dm[1] + ' days)' : '');
+        } else {
+          reason = (rs[rk] ? rs[rk] + ' · ' : '') + span.charAt(0).toUpperCase() + span.slice(1);
+          brief = c.short + (sk.fullMonth ? ' (full month)' : sk.n > 1 ? ' (' + sk.n + ' days)' : '');
+        }
       }
       r.checks.push({ c: c, done: !p, label: c.label, reason: reason, brief: brief });
     });

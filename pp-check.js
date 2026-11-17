@@ -110,17 +110,19 @@
       r.transfer = t.total >= MIN_TRANSFERS;
       if (r.transfer) { r.trfText = t.total + ' transfers'; return r; }
       // how many days in a row below the minimum? look back up to 14 days
-      var back = 1;
+      var back = 1, sum = t.total;
+      function words(days, plus) {
+        var tr = function (n) { return n + ' transfer' + (n === 1 ? '' : 's'); };
+        if (days === 1) return sum ? 'Only ' + tr(sum) + ' done on ' + dmy(Y) : 'No transfer on ' + dmy(Y);
+        var span = (plus ? days + '+' : days) + ' days';
+        return sum ? 'Only ' + tr(sum) + ' done in last ' + span : 'No transfer for last ' + span;
+      }
       function step() {
-        if (back > 14) { r.trfText = (t.total ? 'Only ' + t.total + ' transfer' + (t.total === 1 ? '' : 's') : 'No transfer') + ' on ' + dmy(Y) + ' · under ' + MIN_TRANSFERS + ' for 15+ days'; return r; }
+        if (back > 14) { r.trfText = words(15, true); return r; }
         var d = addDays(Y, -back);
         return transfers(o.id, d, d).then(function (x) {
-          if (x.total >= MIN_TRANSFERS) {
-            r.trfText = (t.total ? 'Only ' + t.total + ' transfer' + (t.total === 1 ? '' : 's') : 'No transfer') + ' on ' + dmy(Y) +
-              (back > 1 ? ' · under ' + MIN_TRANSFERS + ' for last ' + back + ' days' : '');
-            return r;
-          }
-          back++; return step();
+          if (x.total >= MIN_TRANSFERS) { r.trfText = words(back, false); return r; }
+          sum += x.total; back++; return step();
         });
       }
       return step();

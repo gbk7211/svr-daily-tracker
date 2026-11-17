@@ -28,6 +28,15 @@
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'X-Requested-With': 'XMLHttpRequest' }
     }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
   }
+  // switch the selected outlet exactly like Petpooja's top dropdown does
+  function switchTo(id) {
+    return fetch('https://inventory.petpooja.com/', {
+      method: 'POST', credentials: 'include', redirect: 'manual',      // Petpooja answers with a redirect; no need to follow it
+      body: 'header_changed_rest_id=' + encodeURIComponent(id),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }
+    }).then(function (r) { if (r.status >= 400) throw new Error('outlet switch HTTP ' + r.status); });
+  }
+  var START_ID = ((document.body.textContent || '').match(/RestId\s*-\s*(\d+)/) || [])[1] || '';
   // read dates of all rows + "of N records"
   var RX = /\b(\d{1,2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* (\d{4})\b/;
   function parseList(html) {
@@ -87,8 +96,8 @@
 
   function checkOutlet(o) {
     var r = {};
-    // GRN: latest vendor bill in the last 31 days
-    return purchases(o.id, addDays(Y, -30), TODAY).then(function (p) {
+    // select the outlet first, then GRN: latest vendor bill in the last 31 days
+    return switchTo(o.id).then(function () { return purchases(o.id, addDays(Y, -30), TODAY); }).then(function (p) {
       var last = p.dates.length ? p.dates.reduce(function (a, b) { return a > b ? a : b; }) : null;
       r.grn = !!(last && last >= Y);
       r.grnLast = last ? iso(last) : '';
@@ -119,7 +128,10 @@
   }
 
   function next() {
-    if (i >= OUTLETS.length) return done();
+    if (i >= OUTLETS.length) {
+      show(table('<p style="margin-top:12px">Switching back to your outlet…</p>'));
+      return (START_ID ? switchTo(START_ID) : Promise.resolve()).catch(function () {}).then(done);
+    }
     var o = OUTLETS[i++];
     show(table('<p style="margin-top:12px">Checking <b>' + o.name + '</b> (' + i + ' of ' + OUTLETS.length + ')…</p>'));
     checkOutlet(o).catch(function (e) { return { error: e.message || String(e) }; }).then(function (r) {
@@ -129,7 +141,7 @@
   function done() {
     var payload = { date: iso(TODAY), checked: iso(Y), min: MIN_TRANSFERS, results: results };
     var url = TRACKER + '#ppauto=' + encodeURIComponent(JSON.stringify(payload));
-    show(table('<p style="margin-top:14px">Done. These go into Tracker admin for <b>' + iso(TODAY) + '</b> (the report day). Outlets that could not be checked are left as they are.</p>' +
+    show(table('<p style="margin-top:14px">Done. (Reload the Petpooja page before you keep working there.) These go into Tracker admin for <b>' + iso(TODAY) + '</b> (the report day). Outlets that could not be checked are left as they are.</p>' +
       '<a href="' + url + '" target="_blank" style="display:inline-block;margin-top:6px;background:#7c2d12;color:#fff;padding:12px 18px;border-radius:10px;font-weight:800;text-decoration:none">✅ Send to Tracker admin</a>'));
   }
   next();

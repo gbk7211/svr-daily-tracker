@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Petpooja Check Setup</title>
+<style>
+  :root{--brand:#7c2d12;--ink:#1f2937;--bg:#f4f5f7;--card:#fff;--line:#e5e7eb}
+  @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#e5e7eb;--bg:#111827;--card:#1f2937;--line:#374151}}
+  *{box-sizing:border-box} body{margin:0;font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--brand);color:#fff;padding:14px 18px;font-size:19px;font-weight:800}
+  .wrap{max-width:720px;margin:auto;padding:16px}
+  .card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:14px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  table{border-collapse:collapse;width:100%} td{padding:6px;border-bottom:1px solid var(--line)}
+  input{font-size:16px;padding:8px;border:1px solid #cbd5e1;border-radius:8px;width:140px}
+  .bm{display:inline-block;background:var(--brand);color:#fff;padding:14px 20px;border-radius:12px;font-weight:800;font-size:17px;text-decoration:none;cursor:grab}
+  .btn{background:#0369a1;color:#fff;border:0;border-radius:9px;padding:10px 16px;font-size:15px;font-weight:700;cursor:pointer}
+  ol li{margin-bottom:6px} .muted{color:#6b7280;font-size:13px}
+</style>
+</head>
+<body>
+<header>🔄 Petpooja GRN &amp; Transfer check — setup</header>
+<div class="wrap">
+  <div class="card">
+    <b>1. Restaurant IDs</b>
+    <p class="muted">In Petpooja, pick an outlet in the top dropdown — the left menu shows <b>Settings (RestId - 112218)</b>. Type that number next to the outlet. Leave empty for outlets you don't want checked.</p>
+    <table id="t"></table>
+    <p>Transfers needed per day: <input id="min" inputmode="numeric" style="width:70px"></p>
+    <button class="btn" onclick="build()">Make my bookmark</button>
+  </div>
+  <div class="card" id="step2" style="display:none">
+    <b>2. Put the bookmark in Chrome</b>
+    <ol>
+      <li>Show the bookmarks bar: press <b>Ctrl + Shift + B</b>.</li>
+      <li><b>Drag</b> this button up onto the bookmarks bar:<br><br><a class="bm" id="bm" href="#">🔄 SVR Petpooja check</a><br><br></li>
+      <li>Each morning: open <b>inventory.petpooja.com</b> (logged in), click the bookmark, wait ~1 minute, then tap <b>Send to Tracker admin</b>.</li>
+    </ol>
+    <p class="muted">If you change an ID later, come back here, press "Make my bookmark" again and drag the new one (delete the old one).</p>
+  </div>
+</div>
+<script>
+var OUTLETS=['Guindy','Kovilambakkam','Medavakkam','Mylapore','Nandambakkam','OMR','Perungalathur','Poonamallee','RA Puram','RA Puram A-C','Ramapuram','Santhome','Urapakkam','DLF Cyber City'];
+var KNOWN={'Guindy':'112218','RA Puram':'112212','OMR':'460741'};
+var saved={}; try{ saved=JSON.parse(localStorage.getItem('ppIds')||'{}'); }catch(e){}
+var t=document.getElementById('t');
+OUTLETS.forEach(function(o,i){
+  var v=saved[o]!=null?saved[o]:(KNOWN[o]||'');
+  t.insertAdjacentHTML('beforeend','<tr><td>'+o+'</td><td><input id="i'+i+'" inputmode="numeric" value="'+v+'"></td></tr>');
+});
+var minv='3'; try{ minv=localStorage.getItem('ppMin')||'3'; }catch(e){}
+document.getElementById('min').value=minv;
+
+function build(){
+  var list=[], ids={};
+  OUTLETS.forEach(function(o,i){ var v=document.getElementById('i'+i).value.trim(); ids[o]=v; if(/^\d+$/.test(v)) list.push({id:v,name:o}); });
+  var min=parseInt(document.getElementById('min').value,10)||3;
+  try{ localStorage.setItem('ppIds',JSON.stringify(ids)); localStorage.setItem('ppMin',String(min)); }catch(e){}
+  if(!list.length){ alert('Enter at least one restaurant ID.'); return; }
+  fetch('./pp-check.js?v='+Date.now()).then(function(r){return r.text();}).then(function(src){
+    src=src.replace('__OUTLETS__',JSON.stringify(list)).replace('__MINTRF__',String(min));
+    document.getElementById('bm').href='javascript:'+encodeURIComponent(src);
+    document.getElementById('step2').style.display='block';
+    document.getElementById('step2').scrollIntoView({behavior:'smooth'});
+  }).catch(function(){ alert('Could not load the checker. Check internet and try again.'); });
+}
+</script>
+</body>
+</html>

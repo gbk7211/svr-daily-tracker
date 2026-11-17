@@ -36,7 +36,7 @@
 </head>
 <body>
 <div id="app"></div>
-<script src="./tracker-payroll.js?v=20261116b"></script>
+<script src="./tracker-payroll.js?v=20261117a"></script>
 <script>
 // ===================== CONFIG =====================
 var API = 'https://script.google.com/macros/s/AKfycbzHAQxit9t7djfxG1KXSklYJshq6pwFm7r3g0vMFh9AFeHixG8hR_zTl5595IrlJmrrrw/exec';
@@ -87,7 +87,7 @@ function load(month,v){
       if(!window.__snapped){ window.__snapped=true; reportDate=j.latest;
         if(j.latest.substring(0,7)!==month){ load(j.latest.substring(0,7),view); return; } }
     }
-    draw();
+    draw(); try{ ppAutoMaybe(); }catch(e){}
   }).catch(function(){ render(nav()+'<div class="wrap"><p>Cannot reach server. Refresh to retry.</p></div>'); });
 }
 

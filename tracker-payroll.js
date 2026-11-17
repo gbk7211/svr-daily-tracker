@@ -367,3 +367,66 @@ var OWNER_JS = "function toggleCard(id){var el=document.getElementById('chk-'+id
   "function filterCards(sev,btn){document.querySelectorAll('.filter-pill').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');" +
   "document.querySelectorAll('.outlet-card').forEach(function(c){c.style.display=(sev==='all'||c.dataset.sev===sev)?'':'none';});}" +
   "function searchCards(v){var q=v.toLowerCase();document.querySelectorAll('.outlet-card').forEach(function(c){c.style.display=(!q||c.dataset.name.indexOf(q)>=0)?'':'none';});}";
+
+// =====================================================================
+//  PETPOOJA AUTO-CHECK — results arrive from the "SVR Petpooja check"
+//  bookmark as  dashboard.html#ppauto=<json>  and are applied here
+// =====================================================================
+var PPAUTO = null;
+try {
+  var _m = location.hash.match(/ppauto=([^&]+)/);
+  if (_m) PPAUTO = JSON.parse(decodeURIComponent(_m[1]));
+} catch (e) { PPAUTO = null; }
+
+function ppAutoMaybe() {
+  if (!PPAUTO || PPAUTO.shown) return;
+  var d = PPAUTO.date;
+  if (DATA.month !== d.substring(0, 7)) { reportDate = d; load(d.substring(0, 7), 'day'); return; }
+  PPAUTO.shown = true;
+  if (reportDate !== d || view !== 'day') { reportDate = d; view = 'day'; draw(); }
+  var R = PPAUTO.results, rows = '';
+  Object.keys(R).forEach(function (o) {
+    var r = R[o], known = DATA.outlets.indexOf(o) >= 0;
+    var c = function (ok, t) { return '<td style="text-align:left;color:' + (ok ? '#15803d' : '#b91c1c') + '">' + (ok ? '✔ ' : '✘ ') + esc(t) + '</td>'; };
+    rows += '<tr><td class="left"><b>' + esc(o) + '</b>' + (known ? '' : ' <span style="color:#b45309">(not in tracker)</span>') + '</td>' +
+      (r.error ? '<td colspan="2" style="color:#b45309">not checked: ' + esc(r.error) + '</td>' : c(r.grn, r.grnText) + c(r.transfer, r.trfText)) + '</tr>';
+  });
+  var h = '<div id="ppbox" style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;overflow:auto">' +
+    '<div class="card" style="max-width:820px;margin:30px auto"><h3 style="margin-top:0">🔄 Petpooja check — apply to ' + esc(d) + '</h3>' +
+    '<p style="font-size:13px;color:#555">Checked Petpooja for <b>' + esc(PPAUTO.checked) + '</b>: GRN = at least 1 vendor bill on or after that day · ' +
+    'Transfer = at least ' + PPAUTO.min + ' transfers that day. Applying ticks GRN / Transfer for each outlet and writes the reason when not done. ' +
+    'Your other reasons (Attendance / Gas / EB) are kept.</p>' +
+    '<table><tr><th class="left">Outlet</th><th class="left">Vendor Bill GRN</th><th class="left">Cost Center Transfer</th></tr>' + rows + '</table>' +
+    '<p id="ppmsg" style="font-weight:700"></p>' +
+    '<button class="btn" id="ppgo" onclick="ppAutoApply()">✅ Apply to ' + esc(d) + '</button> ' +
+    '<button class="btn" style="background:#999" onclick="ppAutoClose()">Cancel</button></div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+}
+function ppAutoClose() {
+  var b = document.getElementById('ppbox'); if (b) b.remove();
+  try { history.replaceState(null, '', location.pathname); } catch (e) {}
+}
+function ppAutoApply() {
+  var d = PPAUTO.date, R = PPAUTO.results;
+  var list = Object.keys(R).filter(function (o) { return !R[o].error && DATA.outlets.indexOf(o) >= 0; });
+  var btn = document.getElementById('ppgo'), msg = document.getElementById('ppmsg'), n = 0, fail = [];
+  btn.disabled = true;
+  function next() {
+    if (n >= list.length) {
+      msg.textContent = fail.length ? '⚠ Saved, except: ' + fail.join(', ') + ' — tick those by hand.' : '✅ Saved for all ' + list.length + ' outlets.';
+      msg.style.color = fail.length ? '#b45309' : '#15803d';
+      btn.textContent = 'Done'; btn.disabled = false; btn.onclick = function () { ppAutoClose(); draw(); };
+      return;
+    }
+    var o = list[n++], r = R[o];
+    msg.textContent = 'Saving ' + o + ' (' + n + ' of ' + list.length + ')…'; msg.style.color = '#555';
+    var prev = DATA.petpooja[o + '|' + d] || {}, pr = prev.reasons || {};
+    var reasons = { a: pr.a || '', g: pr.g || '', e: pr.e || '',
+                    grn: r.grn ? '' : r.grnText, trf: r.transfer ? '' : r.trfText };
+    apiPost({ action: 'petpooja', pin: PIN, date: d, outlet: o, grn: !!r.grn, transfer: !!r.transfer, reasons: reasons }).then(function (j) {
+      if (!j.ok) fail.push(o); else DATA.petpooja[o + '|' + d] = { grn: !!r.grn, transfer: !!r.transfer, reasons: reasons };
+      next();
+    }).catch(function () { fail.push(o); next(); });
+  }
+  next();
+}
